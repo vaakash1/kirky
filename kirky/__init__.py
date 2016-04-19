@@ -1,127 +1,34 @@
-from copy import copy
 from fractions import Fraction
-from .edge import Block, EdgePool
-from .vertex import VertexPool
 from pyx import canvas
 from .draw import DrawBlock
 from time import clock
 from .issue import Issue
 from sympy import Matrix
-
-# the following function will take a conditions
-# matrix. It will then go ahead and create a base block
-
-# conditions should be the B part of [IB] transposed and should be sympy matrix
-def createBaseBlock(conditions, B):
-    # we need to get the max element of each column, this will
-    # be the length of one dimension or side of our block
-    sides = []
-    for i in range(0, conditions.shape[1]):
-        column = conditions[:,i]
-        max_elem = 0
-        for element in column:
-            if abs(element) > max_elem:
-                max_elem = abs(element)
-        sides.append(max_elem)
-    # now before we can start building the block, we need our vertex pool
-    vertex_pool = VertexPool(B)
-    edge_pool = EdgePool()
-    # now that we have our sides and our vertex_pool we can go ahead and create our block
-    block = Block(vertex_pool, edge_pool)
-    block.num_vectors = block.dimension + B.shape[1]
-    # we add a single vertex which is the origin, and we will build from here
-    vertex = vertex_pool.GetVertex([Fraction(0,1)] * vertex_pool.dimension)
-    # we start by making the 1 sided hyper cube we will use
-    for i in range(0, conditions.shape[1]):
-        # first we create our new vector we will be
-        # adding on
-        vector = [Fraction(0,1)] * conditions.shape[1]
-        vector[i] = Fraction(1,1)
-        # now we grab the blocks vertices
-        vertices = copy(block.Vertices())
-        # now we shift the block by one in the ith dimension
-        block.AddShift(1,i)
-        # for each of the old vertices we add an edge going out from
-        # them of our new type
-        for vertex in vertices:
-            head = []
-            for j in range(0, conditions.shape[1]):
-                head.append(vertex.position[j] + vector[j])
-            tail = copy(vertex.position)
-            # now we create the edge that will go between these two positions
-            edge = block.CreateEdge(head, tail,i)
-            # and we attempt to add it
-            block.AddEdge(edge)
-    # now we shift and add on the various sides
-    for i in range(0, conditions.shape[1]):
-        # note that we add on one less number of sides than in sides. That's
-        # because by the above construction we already have one of those sides
-        for j in range(1, sides[i]):
-            block.AddShift(1, i)
-    # now we have our basic block
-    return block
-
-def createInteriorBlock(conditions, multiples, baseblock):
-    """
-    For each condition, we need to loop through the vertices
-    in the baseblock and add and subtract to its position, the
-    position of the other side of our vector. If either exists we
-    create and add the appropriate vector.
-
-    Note none of the multiples can be negative
-    """
-    interior = Block(baseblock.vertex_pool, baseblock.edge_pool)
-    interior.num_vectors = baseblock.num_vectors
-    for i in range(0, conditions.shape[0]):
-        for vertex in baseblock.Vertices():
-            # first we add
-            desired_position = []
-            for j in range(0, len(vertex.position)):
-                desired_position.append(vertex.position[j] + conditions[i,j])
-            # now we want to see if there is a vertex at this position
-            has_vertex = baseblock.vertex_pool.HasVertex(desired_position)
-            if has_vertex:
-                edge = interior.CreateEdge(desired_position, copy(vertex.position), i + conditions.shape[1], multiples[i])
-                # I now add the edge and note it will add over the same vertex pool as the base block
-                interior.AddEdge(edge)
-            # then we subtract
-            desired_position = []
-            for j in range(0, len(vertex.position)):
-                desired_position.append(vertex.position[j] - conditions[i,j])
-            # now we want to see if there is a vertex at this position
-            has_vertex = baseblock.vertex_pool.HasVertex(desired_position)
-            if has_vertex:
-                edge = interior.CreateEdge(copy(vertex.position), desired_position, i + conditions.shape[1], multiples[i])
-                interior.AddEdge(edge)
-    return interior
+from block_creation import createBaseBlock, createInteriorBlock
 
 class Kirchhoff:
-    def __init__(self, B, conditions, multiples, min_vectors):
+    def __init__(self, B, conditions, multiples):
         self.block = createBaseBlock(conditions, B)
-        self.web = self.block.vertex_pool.web
         self.interior = createInteriorBlock(conditions, multiples, self.block)
-        self.min_vectors = min_vectors
+        self.web = self.block.vertex_pool.web
         self.dimension = self.block.dimension
-        # each entry will take the last number of zero locks
-        self.independents = []
-        # stuff to do with solutions
         self.solution = None
         self.incidence_matrix = None
+        self.linear_system = None
         
-    # this function will cause a replication along a specific dimension 
-    # such as to duplicate along that direction
+    """
+    This method allows us to grow our block along a certain dimension. It does
+    so by shift-adding the base block by the width of the block in that dimension
+    and then shift-adding the interior by one as many times as the original base
+    block was wide in that dimension
+    """
     def Grow(self, dimension):
-        # this simply shift and adds the block in the dimension specified by its 
-        # current size by an amount which is the size of the block in that dimension
-        # currently.
-        # it then shift and adds the interior in that dimension an amount one 
-        # the original block size mentioned above number of times
         print('-->growing along dimension %s' % dimension)
         start = clock()
         self.Unlock()
         # first we grab how far we are going to have to shift
         amount = int(self.block.Size()[dimension])
-        # now we shift the block by that amount
+        # now we shift-add the baseblock by that amount
         self.block.AddShift(amount, dimension)
         # now we do the incremental shift and add for the interior
         for i in range(0, amount):
@@ -129,193 +36,102 @@ class Kirchhoff:
         # and that's it!
         end = clock()
         print('-->grew along dimension %s in %s seconds' % (dimension, (end-start)))
-        
+    
+    """
+    This allow you to unlock this object from its solution if you want to try 
+    another solution
+    """  
     def Unlock(self):
         self.web.Unlock()
     
-    def LockSolution(self, solution, nullspace_vector_index=0):
+    """
+    Once we have obtained a non-trivial null space for a specific block-size
+    we are going to want to lock the values we have found into the block so
+    that we can obtain our Kirchhoff Graph.
+    
+    The thing is that we may have more than one null space vector in our null
+    space. Therefore we have to make a selection - this is the meaning of the 
+    nullspace_vector_index. Whatever number you supply there will be the vector
+    chose (and it's all in base 0 of course). It defaults to 0, but if, for 
+    example you choose to enter 1 you will get the second vector if it exists.
+    If it doesn't exist get prepared for an error.
+    
+    Once a vector has been chosen, this method just runs through the edge weights
+    locking each one to its solution in the vector. And remember, because 
+    we based the order of the solution off of the order of the edge weights
+    in the edge pool this is pretty easy.
+    """
+    def LockSolution(self, nullspace_vector_index=0):
         print('-->locking solution')
         start = clock()
-        # this runs through the nodes and the solution at the same time 
-        # and locks each node to its entry in the solution 
-        # and it checks to make sure it can actually lock and that 
-        # the nodes themselves haven't locked things up already
-        # note that you can choose which null space vector to choose from 
-        # the nullspace solution but it defaults to the first
-        nullspace_vector = solution[nullspace_vector_index]
-        for i in range(0, len(self.web.nodes)):
-            node = self.web.nodes[i]
+        nullspace_vector = self.solution[nullspace_vector_index]
+        for i in range(0, len(self.block.edge_pool.edge_weights)):
+            node = self.block.edge_pool.edge_weights[i]
             value = nullspace_vector[i,0]
             if not node.lock:
                 self.web.Lock(node,value)
         end = clock()
         print('-->solution locked in %s seconds' % (end - start))
-        
-    def LockSolutionEdgeOnly(self, solution, nullspace_vector_index=0):
-        print('-->locking solution (edges only)')
-        start = clock()
-        # this goes through and locks the edges 
-        nullspace_vector = solution[nullspace_vector_index]
-        for i in range(0, len(self.block.edge_pool.edge_weights)):
-            node = self.block.edge_pool.edge_weights[i]
-            value = nullspace_vector[i,0]
-            if not node.lock:
-                self.web.LockDown(node,value)
-        end = clock()
-        print('-->solution locked (edges only) in %s seconds' % (end - start))
-        
-    def LockZeroes(self):
-        print('-->locking zeroes')
-        start = clock()
-        # 1. we need to lock zeros over an entire cut where there min_vectors 
-        # or less entries in the cut (where there is no entry if there are no 
-        # edges at all corresponding to that cut)
-        # 2. we need to lock to zero any entry in a cut that has no edges 
-        # corresponding to it at all
-        for vertex in self.block.Vertices():
-            count = 0 # this will be used to determine how many zero entries
-                            # there are in the cut
-            for i in range(0, len(vertex.edges)):
-                if not vertex.edges[i][0] and not vertex.edges[i][1]:
-                    # if there are no edges corresponding to this cut
-                    # we will attempt to lock to zero
-                    if not vertex.cut[i].lock:
-                        self.web.Lock(vertex.cut[i], Fraction(0,1))
-                    else:
-                        pass
-                    count += 1  # and we increment the count because we have found
-                                # another zero entry in the cut
-            # now that we know how many entries in our cut are zero we can make 
-            # sure that that doesn't leave us with too few spots to fill
-            if self.min_vectors > self.block.num_vectors - count and count != len(vertex.cut):
-                for i in range(0, len(vertex.edges)):
-                    if not vertex.cut[i].lock:
-                        self.web.Lock(vertex.cut[i], Fraction(0,1))
-                    else:
-                        pass
-        end = clock()
-        print('-->zeroes locked in %s seconds' % (end - start))
-        
-    def FindNumRows(self):
-        # this method will determine how many rows we need for our linear
-        # system's matrix. It counts how many parent groups there are across 
-        # the entire web of nodes plus however many nodes have been locked
-        # to zero by our LockZeroes Function
-        count = 0
-        for node in self.web.nodes:
-            if node.lock:
-                # this means it has been locked to zero
-                count += 1
-            for key in node.parent_groups:
-                count += 1
-        return count
     
+    """
+    We know that vertex cuts reduce to edges and that all of our conditions 
+    are based on vertex cuts. Therefore we can reduce the set of variables we 
+    need to consider down to just edge weights. Each edge weight gets an unique
+    index. The same index its weight has in the edge_pool's edge_weights. This 
+    index is the column in which it appears in the matrix of our linear system
+    
+    The following method then goes ahead and generates a matrix that contains
+    all of these conditions in such a form that this matrix M multiplied by 
+    a column containing the edge weights should equal zero. 
+    
+    How do we generate each of these rows of this matrix then? We follow the 
+    following algorithm:
+        * loop through every each of the symbolic nodes attached to our Kirchhoff 
+            object
+        * for each such node we grab its edge parents using getEdgeParents
+        * for each such node we loop through its parent groups (note that the 
+            only nodes with parents are vertex cut nodes)
+        * for each parent group that isn't an edge parent group we create a new 
+            row
+        * for each parent group, if it is not the edge parent group we take 
+            each parent and get its edge parents (note that every parent in a 
+            parent group which isn't the edge parent group does not have any 
+            edge nodes in it). We then get the multiplier of the edge weight 
+            (obtained from the edge parent group for the node) multipled by
+            the current node's multiplier in the parent group we are considering
+            and add it to the column position in that row corresponding to the 
+            edge weight in consideration.
+        * Then, for each edge weight in the child's parent group, we add the 
+            multipler to the column corresponding to that edge weight multiplied 
+            by negative one. (we multiply by negative, because the parent group 
+            values input above, when multipled by the edge weight solution must 
+            add up to the sum to the child, so by subtracting the child, our 
+            row, multiplied by the edge weights should equal zero)
+            
+    Once this is done it sets self.linear_system to the found matrix
+    """
     def GenerateLinearSystem(self):
         print('-->generating linear system')
         start = clock()
-        # our linear system for this block is composed in the following way.
-        # each of our nodes is a variable, therefore there needs to be a spot
-        # for each node in our solution. The entry's spot is determined by 
-        # the node's id. All nodes have unique and sequential ids so this works
-        # well. Each row of our linear system's matrix is generated in one of 
-        # two ways:
-        # 1. From a Parent Group
-        #    Here we place each parent's multiplier and the column position 
-        #    dictated by their id. Then we place a -1 at the column position 
-        #    dictated by the child's id. Seeing as we are saying this row 
-        #    multiplied with the solution must equal zero this is perfect.
-        # 2. From a node locked to zero
-        #    This is simple: the row is just a one at the column position 
-        #    which is the id of the node in question. This way we are setting
-        #    one times our node's value to equal zero. Which will mean our 
-        #    node will be set to zero as well. (Note that this is absolutely
-        #    required. Otherwise our linear system will solve for a cut and 
-        #    in the cut we will have a positive value corresponding to nothing
-        #    because in our Kirchhoff skeleton which composes the block there 
-        #    are no edges of this kind adjacent to the vertex this cut came 
-        #    from, our solution is true given the conditions on the cuts, 
-        #    but the cut's implication of edges is held in the skeleton, not 
-        #    the cuts themselves, and so if we do not add this information 
-        #    [by locking zeroes] we will get something inconsistent with what 
-        #    we actually want)
-        
         # first we need to generate the matrix that will hold our system
         # to do this we need the number of rows and the length of each row
         num_rows = self.FindNumRows()
-        num_nodes = len(self.web.nodes) # this is the length of each row
-        matrix = Matrix(num_rows, num_nodes, [0]*(num_rows * num_nodes))
-        # now that we have generated the matrix we need to add in the non-zero
-        # parts of each row. We will do this by looping through the vertices 
-        # and for every lock to zero or parent group updating a new row. We will
-        # keep track of the row we are on with the following counter
-        row = 0
-        for node in self.web.nodes:
-            id = node.id
-            if node.lock:   # this means it has been locked to zero
-                matrix[row,id] = 1
-                # we increment because now we are done with that row
-                row += 1
-            for key in node.parent_groups:
-                matrix[row, id] = -1
-                for parent_tuple in node.parent_groups[key]:
-                    parent = parent_tuple[0]
-                    multiplier = parent_tuple[1]
-                    matrix[row, parent.id] = multiplier
-                # we increment because now we are done with that row
-                row += 1
-        end = clock()
-        print('-->generated linear system of size (%s, %s) in %s seconds' % (matrix.shape[0], matrix.shape[1], (end-start)))
-        return matrix    
-
-    def GenerateLinearSystemEdgeOnly(self):
-        print('-->generating linear system (edge only)')
-        start = clock()
-        """
-		We know for a fact that our nodes split into two different kinds:
-			edges and vertex cut entries
-		we also know that except for cuts with absolutely no entries that each cut 
-		is 'determined' by the edges that enter into it. Therefore we need only solve
-		for the edges as they contain all of the information about our final solution.
-		In order to get only edges in our final solution we will do the following.
-		When looping through our nodes like in the normal generate linear system function
-		whenever we encounter a cut-node we 'replace' it with the edges that comprise this.
-		That is, instead of placing its multiple where its id should go, we instead 
-		for each of its corresponding edges, we enter the edges multiplier times the 
-		multiplier of the node at the id of the edge (the weight id). Then for parent 
-		groups that are comprised of edges, unless the node is locked (in which case 
-		it is locked to zero and we place each edge weight's multipler at its id) we 
-		skip (this reduces the number of contraints). And that is how we generate the 
-		linear system only concerning edges.
-		"""
-        # first we need to generate the matrix that will hold our system
-        # to do this we need the number of rows and the length of each row
-        num_rows = self.FindNumRowsEdgeOnly()
+        # the number of columns is just the number of edge weights we will be 
+        # solving for
         num_edges = len(self.block.edge_pool.edge_weights) # this is the length of each row
         matrix = Matrix(num_rows, num_edges, [0]*(num_rows * num_edges))
-        # now that we have generated the matrix we need to add in the non-zero
-        # parts of each row. We will do this by looping through the vertices 
-        # and for every lock to zero or parent group updating a new row. We will
-        # keep track of the row we are on with the following counter
+        # now we can go ahead and fill in the non-zero bits in this matrix.
+        # to keep track of the row we are currently on we keep the following counter
         row = 0
         for node in self.web.nodes:
             edge_parents = self.getEdgeParents(node)
-            if node.lock and node.kind == 'vertex':
-                if edge_parents[1] or edge_parents[0]:
-                    for edge_tuple in edge_parents:
-                        if edge_tuple:
-                            weight = edge_tuple[0]
-                            multiplier = edge_tuple[1]
-                            matrix[row, weight.weight_id] += multiplier
-                    row += 1
             for key in node.parent_groups:
-                # now we check to make sure this isn't a edge_weight parent group
-                # because if it is we have already dealt with it
+                # first we check to make sure this isn't the edge parent group
                 if node.parent_groups[key][0][0].kind == 'edge':
                         continue
-                # now we deal with a parent group with parents of the 'vertex' kind 
+                # now we go about replacing all of the parents with their edge
+                # edge weight parents
                 for parent_tuple in node.parent_groups[key]:
-                    # now for each of these we need to replace them by their 
-                    # edge parents
                     parent = parent_tuple[0]
                     parent_multiplier = parent_tuple[1]
                     # now we get the edges to replace it
@@ -325,6 +141,7 @@ class Kirchhoff:
                         if edge_tuple:
                             weight = edge_tuple[0]
                             multiplier = edge_tuple[1]
+                            # we add this into the right column position in this row
                             matrix[row, weight.weight_id] += multiplier * parent_multiplier
                     # finally we add in this node's parents with a minus 1 affixed to 
                     # each of their multipliers
@@ -332,13 +149,26 @@ class Kirchhoff:
                         if edge_tuple:
                             weight = edge_tuple[0]
                             multiplier = edge_tuple[1]
+                            # we add this into the right column position in this row
                             matrix[row, weight.weight_id] += multiplier * -1
                 # we increment because now we are done with that row
                 row += 1
         end = clock()
-        print('-->generated linear system (edge system) of size (%s, %s) in %s seconds' % (matrix.shape[0], matrix.shape[1], (end-start)))
-        return matrix  
+        print('-->generated linear system of size (%s, %s) in %s seconds' % (matrix.shape[0], matrix.shape[1], (end-start)))
+        self.linear_system = matrix 
     
+    """
+    This returns a list of length two. The first entry is for the first edge
+    weight found, and the second entry is for the second edge weight found. 
+    If in either case the edge weight doesn't exist the entry in the 
+    list there just defaults to None. If it does exist the entry is a tuple
+    with the edge weight being the first entry and its multiplier in the parent
+    group in which it was found being the second entry
+    
+    We find these two by looping through the node's parent groups and grabbing 
+    the parents from the one whose first node is of the type edge. If no such 
+    parent groups are found we just return [None,None]
+    """
     def getEdgeParents(self, node):
         # this gets the edge_weights that form the parent group of a node 
         # returns a two list, with edge or None in each entry
@@ -350,22 +180,22 @@ class Kirchhoff:
                 continue
             # okay we now know that this is the parent group with edges
             for parent_tuple in node.parent_groups[key]:
-                edge_weight = parent_tuple[0]
-                multiplier = parent_tuple[1]
-                if index > 1:
-                    break
-                parents[index] = (edge_weight, multiplier)
+                # the parent group will contain the edge weight node and the 
+                # multipler in that order so we just set the entry at the 
+                # current index to exactly that
+                parents[index] = parent_tuple
                 index += 1
             break
         return parents
     
-    def FindNumRowsEdgeOnly(self):
+    """
+    This runs through the nodes attached to our object finds the number of
+    none-edge parent groups. This corresponds to the number of rows that will 
+    be in our linear system.
+    """
+    def FindNumRows(self):
         count = 0
         for node in self.web.nodes:
-            edge_parents = self.getEdgeParents(node)
-            if node.lock:
-                if edge_parents[1] or edge_parents[0]:
-                    count += 1
             # we skip things that are strictly edges
             for key in node.parent_groups:
                 # now we check to make sure this isn't a edge_weight parent group
@@ -373,33 +203,22 @@ class Kirchhoff:
                         continue
                 count += 1
         return count
-
-    def Solve(self):
-        # here we make a call to generate the linear system the we try to solve 
-        # for its nullspace. We return whatever solution we find. For Sympy
-        # if there is no solution what we return will be an empty list. So 
-        # you can check for that
-        M = self.GenerateLinearSystem()
-        print('-->looking for nullspace')
-        start = clock()
-        solution = M.nullspace()
-        end = clock()
-        print('-->nullspace found in %s seconds' % (end - start))
-        return solution
     
-    def SolveEdgeOnly(self):
-        # here we make a call to generate the linear system the we try to solve 
-        # for its nullspace. We return whatever solution we find. For Sympy
-        # if there is no solution what we return will be an empty list. So 
-        # you can check for that
-        M = self.GenerateLinearSystemEdgeOnly()
+    """
+    This is where we plug in our nullspace finder. It simply looks for the 
+    nullspace of self.linear_system and sets self.solution to what it finds
+    """
+    def SolveLinearSystem(self):
         print('-->looking for nullspace')
         start = clock()
-        solution = M.nullspace()
+        solution = self.linear_system.nullspace()
         end = clock()
         print('-->nullspace found in %s seconds' % (end - start))
-        return solution
-                
+        self.solution = solution
+    
+    """
+    This is where we plug in the drawing functionality from draw
+    """
     def Draw(self, file):
         # this simply creates a canvas, draws the interior and exterior and 
         # then exports it as a PDF
@@ -407,53 +226,74 @@ class Kirchhoff:
         DrawBlock(self.block, c)
         DrawBlock(self.interior, c)
         c.writePDFfile(file)
-        
+    
+    """
+    THIS SHOULD ONLY BE CALLED AFTER A SOLUTION HAS BEEN LOCKED
+    
+    It creates a matrix with as many columns as vectors. It runs through the 
+    vertices and for each one adds its cut as a row. 
+    
+    Note that the index of the row you are looking at corresponds to the 
+    vertex at the same index in self.block.Vertices()
+    
+    Once it is done it sets the matrix it found to self.incidence_matrix
+    
+    NOTE THAT MANY VERTICES ARE LIKELY TO BE ZERO BECAUSE THEY ARE NOT 
+    PART OF THE SOLUTION. YET BECAUSE WE ARE GETTING THE CUTS OF ALL 
+    VERTICES THEY WILL STILL SHOW UP IN THE INCIDENCE MATRIX
+    """
     def GetIncidenceMatrix(self):
         print('-->getting incidence matrix')
         start = clock()
-        # this should only be called after a solution has been locked
-        # we are just going to run through the vertices
-        # and generate the incidence matrix. Note you can find their positions
-        # by grabbing the corresponding vertex simply by accessing it from 
-        # self.block.Vertices() at the 
-        # same index of the row you are looking at in the incidence matrix
         # first we generate the matrix we will be using
         num_cols = self.block.num_vectors
         num_rows = len(self.block.Vertices())
         M = Matrix(num_rows, num_cols, [0] * (num_rows * num_cols))
+        # we keep track of the row we are on with the following counter
         row = 0
+        # we run the vertices setting their cut to the current row
         for vertex in self.block.Vertices():
             vector_id = 0
             for node in vertex.cut:
-                M[row, vector_id] = node.value
+                # we check to make sure the node is locked
+                if node.lock:
+                    M[row, vector_id] = node.value
+                else:
+                    # if it isn't then we just set the current element to zero
+                    # because this node is obviously not part of our solution
+                    M[row, vector_id] = 0
                 vector_id += 1
+            # we are done with the row, so we increment our counter
             row += 1
         end = clock()
         print('-->got incidence matrix in %s seconds' % (end - start))
-        return M
+        self.incidence_matrix = M
                 
-        
+    """
+    This is the algorithm that puts all of the above together to find the 
+    Kirchhoff Graph corresponding to the inputs entered into the constructor.
+    
+    It is pretty straight forwards as it just 
+    """  
     def Find(self, file=None):
-        # this runs the algorithm to find the kirchhoff graph for the entered 
-        # matrix
         start = clock()
+        # this counter holds the next direction to grow along
         current = 0
         while True:
-            self.LockZeroes()
-            solution = self.SolveEdgeOnly()
-            if not solution:
-                self.Unlock()
+            self.GenerateLinearSystem()
+            self.SolveLinearSystem()
+            if not self.solution:
                 self.Grow(current)
-                if current == 0:
-                    current = 1
+                # we check to see if we still have another dimension 
+                # to grow in before we need to go back to dimension 0
+                if current < self.dimension - 1:
+                    current += 1
                 else:
                     current = 0
             else:
-                self.solution = solution
                 break
-        self.Unlock()
-        self.LockSolutionEdgeOnly(solution)
-        self.incidence_matrix = self.GetIncidenceMatrix()
+        self.LockSolution()
+        self.GetIncidenceMatrix()
         if file:
             self.Draw(file)
         end = clock()

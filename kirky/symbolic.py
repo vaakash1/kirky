@@ -71,48 +71,10 @@ class Node:
         # now that we have our value we see if this node is already locked 
         # we can attempt a lock
         self.Lock(value)
-        
-    def downParentLock(self, key):
-        # first we generate the value that this child will attempt to lock 
-        # to, because we need for both conditional statements to follow
-        value = 0
-        for parent_tuple in self.parent_groups[key]:
-            value += parent_tuple[1] * parent_tuple[0].value
-        # now that we have our value we see if this node is already locked 
-        # we can attempt a lock
-        self.LockDown(value)
-    
-    # this will be called by lock to see if there are any parent groups 
-    # with one unlocked parent. In which case that parent needs to get locked    
-    def checkForGroupLocks(self):
-        # checking for group locks is looking to see if only one of the parents
-        # are not locked and the child is locked. In which case we know what 
-        # the one child is
-        # this is here because if the child is not locked, the even if only one 
-        # of its parents are not locked, it isn't locked so the group isn't either
-        if not self.lock:
-            return
-        for key in self.parent_groups:
-            if len(self.parent_groups[key]) - 1 == self.parent_group_locks[key]:
-                # we now create the value we will need to lock this to
-                value = 0
-                for parent_tuple in self.parent_groups[key]:
-                    if parent_tuple[0].lock:
-                        value += parent_tuple[1] * parent_tuple[0].value 
-                    else:
-                        unlocked_parent = parent_tuple[0]
-                        multiplier = parent_tuple[1]
-                # this way the sum of the parents times their multipliers 
-                # equals the value of this child
-                value = (self.value - value) / multiplier
-                # and now we go for the lock
-                # note that we let the lock know to ignore this one particular
-                # child
-                unlocked_parent.Lock(value, self.id)
     
     # this updates the lock counts on the children and triggers a lock where 
     # necessary (avoiding a lock trigger on id_to_ignore)        
-    def updateLocksOnChildren(self, id_to_ignore, down_lock=False):
+    def updateLocksOnChildren(self, id_to_ignore):
         for key in self.children:
             for child in self.children[key]:
                 child.parent_group_locks[key] += 1
@@ -121,46 +83,15 @@ class Node:
                     # this is to make sure that the parent isn't spurned to lock by a child 
                     # and then causes a double lock on a child
                     if id_to_ignore != child.id or child.id == None:
-                        if not down_lock:
-                            child.parentLock(key)
-                        else:
-                            child.downParentLock(key)
-    
-    def Lock(self, value, id_to_ignore=None):
-        # if this is not already locked, we lock it
-        if not self.lock:
-            self.value = value
-            self.lock = True
-            self.web.addLock(self, value)
-            # next we need to update the lock counts for its children
-            self.updateLocksOnChildren(id_to_ignore)
-            # now we need to see if this also locks any parents
-            # this will happen if all but one of a parent group's members 
-            # are already locked
-            self.checkForGroupLocks()
-            # now we look to see if any of its children are already locked
-            # because this may mean that having itself locked means that there 
-            # is a group of parents on the child with only one parent left over now
-            for key in self.children:
-                for child in self.children[key]:
-                    child.checkForGroupLocks()
-        # otherwise we have to check two things
-        else:
-            # first if the values are the same this double lock is legal
-            if self.value == value:
-                return
-            # but if they aren't something is wrong in our web so the web
-            # needs to be told
-            else:
-                self.web.HandleDoubleLock(self, value)
+                        child.parentLock(key)
                 
-    def LockDown(self, value):
+    def Lock(self, value):
         # this will lock this node and then only its children if they are ready
         if not self.lock:
             self.value = value
             self.lock = True
             self.web.addLock(self, value)
-            self.updateLocksOnChildren(None, True)
+            self.updateLocksOnChildren(None)
         else:
             if self.value == value:
                 return 
@@ -220,14 +151,6 @@ class Web:
         self.locks.append(new_lock_data)
         # and now we initiate the lock
         node.Lock(value)
-        
-    def LockDown(self, node, value):
-        if node.lock:
-            raise Issue('cannot lock an already locked node from web command')
-        new_lock_data = (node, [])
-        self.locks.append(new_lock_data)
-        # and now we initiate the lock
-        node.LockDown(value)
         
     def addLock(self, node, value):
         # we add a new node into the current_lock data
