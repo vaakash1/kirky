@@ -18,8 +18,6 @@ of that (just B^T if no scaling was required).
  The first row's scaling should be the first entry, the second rows scaling 
  should be the second entry, etc. If no scaling was needed for a particular row, 
  place a one at that position.
- * Finally, you will need the minimum number of vectors that can be on any vertex
-for that vertex to be non-zero. 
 --> Enter each of these components into the Kirchhoff object constructor in that order. 
 
 Then, to get find the Kirchhoff graph corresponding to [IB] 
