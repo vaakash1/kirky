@@ -1,6 +1,7 @@
 from sympy import Matrix, Rational
 from issue import Issue
 
+
 class DividerBroken(Exception):
 
     def __str__(self):
@@ -92,4 +93,6 @@ class Divider(object):
         if vector.shape[1] != 2:
             raise Issue('vector entered into Divider does not have exactly 2 elements')
         return vector
+
+
 
