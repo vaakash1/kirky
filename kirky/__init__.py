@@ -1,10 +1,12 @@
 from fractions import Fraction
 from pyx import canvas
-from .draw import DrawBlock
+from draw import DrawBlock
 from time import clock
-from .issue import Issue
+from issue import Issue
 from sympy import Matrix
 from block_creation import createBaseBlock, createInteriorBlock
+from positive_solve import positive_null
+import numpy as np
 
 class Kirchhoff:
     def __init__(self, B, conditions, multiples):
@@ -61,10 +63,10 @@ class Kirchhoff:
     we based the order of the solution off of the order of the edge weights
     in the edge pool this is pretty easy.
     """
-    def LockSolution(self, nullspace_vector_index=0):
+    def LockSolution(self):
         print('-->locking solution')
         start = clock()
-        nullspace_vector = self.solution[nullspace_vector_index]
+        nullspace_vector = self.solution
         for i in range(0, len(self.block.edge_pool.edge_weights)):
             node = self.block.edge_pool.edge_weights[i]
             value = nullspace_vector[i,0]
@@ -211,7 +213,13 @@ class Kirchhoff:
     def SolveLinearSystem(self):
         print('-->looking for nullspace')
         start = clock()
-        solution = self.linear_system.nullspace()
+        rows = []
+        for i in range(self.linear_system.shape[0]):
+            row = self.linear_system[i,:]
+            new_row = [float(element) for element in row]
+            rows.append(new_row)
+        lin_sys = np.array(rows)
+        solution = positive_null(lin_sys)
         end = clock()
         print('-->nullspace found in %s seconds' % (end - start))
         self.solution = solution
@@ -223,7 +231,9 @@ class Kirchhoff:
         # this simply creates a canvas, draws the interior and exterior and 
         # then exports it as a PDF
         c = canvas.canvas()
+        print 'drawing block'
         DrawBlock(self.block, c)
+        print 'drawing block interior'
         DrawBlock(self.interior, c)
         c.writePDFfile(file)
     
@@ -282,7 +292,7 @@ class Kirchhoff:
         while True:
             self.GenerateLinearSystem()
             self.SolveLinearSystem()
-            if not self.solution:
+            if self.solution is None:
                 self.Grow(current)
                 # we check to see if we still have another dimension 
                 # to grow in before we need to go back to dimension 0

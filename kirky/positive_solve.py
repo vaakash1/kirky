@@ -21,10 +21,9 @@ class Divider(object):
         self.training_data = []
         self.classifications = []
         self.svm = SVC(kernel='linear')
-        self.margin = Fraction(1,1)
 
     def add(self, vector):
-        size = Fraction(abs(sum(vector)))
+        size = abs(sum(vector))
         if size == 0: size = 1.0
         normed_vector = [element / size for element in vector]
         tup = tuple(normed_vector)
@@ -118,9 +117,11 @@ def positive(matrix):
 
 def positive_null(matrix):
     n = np.transpose(null(matrix))
+    if n.shape[0] == 0:
+        return None
     n = shave(n)
     try:
-        return positive(n)
+        return np.transpose(positive(n))
     except Issue:
         return None
 

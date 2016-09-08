@@ -36,5 +36,8 @@ def DrawEdge(edge, canvas):
             canvas.stroke(path.line(head[0], head[1], tail[0], tail[1]), [deco.barrow])
             
 def DrawBlock(block, canvas):
+    count = 1
     for edge in block.edges:
+        print 'drawing edge %s/%s' % (count, len(block.edges))
         DrawEdge(edge, canvas)
+        count += 1

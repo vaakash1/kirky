@@ -1,5 +1,5 @@
-from .vertex import VertexPool
-from .edge import Block, EdgePool
+from vertex import VertexPool
+from edge import Block, EdgePool
 from fractions import Fraction
 from copy import copy
 
