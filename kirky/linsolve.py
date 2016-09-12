@@ -1,6 +1,5 @@
 from sklearn.svm import SVC
-from issue import Issue
-from fractions import Fraction, gcd
+from fractions import Fraction
 import numpy as np
 from numpy.linalg import svd
 from math import sqrt

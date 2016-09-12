@@ -1,5 +1,5 @@
 from sympy import Matrix
-from positive_solve import divider, dot, positive, normalize
+from linsolve import divider, dot, positive, normalize
 import numpy as np
 
 

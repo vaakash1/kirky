@@ -1,11 +1,11 @@
 from fractions import Fraction
 from pyx import canvas
-from draw import DrawBlock
+from .draw import DrawBlock
 from time import clock
-from issue import Issue
+from .issue import Issue
 from sympy import Matrix
-from block_creation import createBaseBlock, createInteriorBlock
-from positive_solve import positive_null
+from .block_creation import createBaseBlock, createInteriorBlock
+from .linsolve import positive_nullspace_vector
 import numpy as np
 
 class Kirchhoff:
@@ -219,7 +219,7 @@ class Kirchhoff:
             new_row = [float(element) for element in row]
             rows.append(new_row)
         lin_sys = np.array(rows)
-        solution = positive_null(lin_sys)
+        solution = positive_nullspace_vector(lin_sys)
         end = clock()
         print('-->nullspace found in %s seconds' % (end - start))
         self.solution = solution
