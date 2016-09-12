@@ -22,7 +22,7 @@ def normalize(vector):
         return [element / length for element in vector]
 
 
-def divider(vectors, C=1000.0, max_iter=-1):
+def divider(vectors, C=1000.0, max_iter=10000, tol=10.0**-13):
     """
     divider(vectors) - this function takes a list of vectors (iterables
     with number elements) and tries to find a hyperplane, passing through
@@ -39,12 +39,12 @@ def divider(vectors, C=1000.0, max_iter=-1):
     exists (i.e. the hyperplane doesn't exist) then None is returned.
     """
     # first we normalize the vectors
-    vectors = [normalize(vector) for vector in vectors]
+    vectors = [tuple(normalize(vector)) for vector in vectors]
     # next we create a set out of these vectors (for easy lookup when we need to
     # check that reflections are not also equal to an input vector)
     vectors = set(vectors)
     # now we create the reflections
-    reflections = [reflect(vector) for vector in vectors if reflect(vector) not in vectors]
+    reflections = [reflect(vector) for vector in vectors if tuple(reflect(vector)) not in vectors]
     # now that we have our two classes, we can create our training data for the SVM
     data = [vector for vector in vectors] + reflections
     # and of course we need the classifications list as well (for the svm)
@@ -57,7 +57,7 @@ def divider(vectors, C=1000.0, max_iter=-1):
     if 1 not in classifications:
         return None
     # now we create and fit our svm. Note I use a large C by default
-    svm = SVC(kernel='linear', C=C, max_iter=max_iter)
+    svm = SVC(kernel='linear', C=C, max_iter=max_iter, tol=tol)
     svm.fit(data, classifications)
     # next we grab the normal the svm has found
     norm = svm.coef_[0].tolist()
@@ -67,12 +67,15 @@ def divider(vectors, C=1000.0, max_iter=-1):
     has_flipped = False
     for vector in vectors:
         product = dot(vector, norm)
-        if product == 0:
+        # the norm isn't going to be perfect, so we allow for some leeway in what a zero is
+        # if it passes this and is negative, then we know its too negative to ignore
+        if abs(product) < tol:
             continue
         if product > 0 and not has_flipped:
             # our norm must be on the right side in this case
             has_flipped = True
         elif product < 0 and not has_flipped:
+            # we don't want to be tripped up by little errors
             # we need to flip our norm
             norm = reflect(norm)
             has_flipped = True
@@ -83,8 +86,22 @@ def divider(vectors, C=1000.0, max_iter=-1):
     return norm
 
 
-# this gets the null space
-def null(matrix, atol=10**-14, rtol=0):
+def nullspace(matrix, atol=10**-13, rtol=0):
+    """
+    nullspace(matrix, atol=10**-14, rtol=0) - This function takes a numpy matrix and returns the nullspace
+    matrix for the input. The code was copied from http://scipy-cookbook.readthedocs.io/items/RankNullspace.html
+    Check that site out if you want to know more.
+
+    But just in case the site disappears, this is what the site says:
+        matrix should be at most 2-D.  A 1-D array with length k will be treated
+            as a 2-D with shape (1, k)
+        atol : float
+            The absolute tolerance for a zero singular value.  Singular values
+            smaller than `atol` are considered to be zero.
+        rtol : float
+            The relative tolerance.  Singular values less than rtol*smax are
+            considered to be zero, where smax is the largest singular value.
+    """
     matrix = np.atleast_2d(matrix)
     u, s, vh = svd(matrix)
     tol = max(atol, rtol * s[0])
@@ -93,42 +110,70 @@ def null(matrix, atol=10**-14, rtol=0):
     return ns
 
 
-# this gets rid of anything on the order of 10**-14
-def shave(matrix, tol=10**-14):
+def shave(matrix, tol=10**-13):
+    """
+    shave(matrix, tol=10**-13) - This function takes a matrix and goes through each of its elements
+    using python's Fraction to find the closes number that does not have any part smaller than the
+    input tolerance (tol). It does this by converting the element to a Fraction where the denominator
+    is limited to being no greater than 1 / tol. It then spits out the resulting matrix.
+    """
     rows = []
+    max_denominator = int(1.0 / tol)
     for row in matrix:
-        new_row = [float(Fraction(element).limit_denominator(int(1.0/tol))) for element in row]
+        new_row = [float(Fraction(element).limit_denominator(max_denominator)) for element in row]
         rows.append(new_row)
     return np.array(rows)
 
 
-# this gets the positive of the matrix if it exists
 def positive(matrix):
+    """
+    positive(matrix) - Given a numpy matrix, this function returns its positive if it exists and None otherwise
+    """
+    # we transpose the matrix so we can easily grab its columns
     trans = np.transpose(matrix)
-    vectors = [row for row in trans]
-    divider = Divider()
-    for vector in vectors:
-        divider.add(vector)
-    try:
-        norm = divider.divide()
-    except Issue:
-        raise Issue('no positive exists')
+    # then we grab the columns
+    columns = [row for row in trans]
+    # next we use the divider to try to divide the columns
+    norm = divider(columns)
+    # we check to make sure the norm exists and thereby division was successful
+    if norm is None:
+        return None
+    # if it was we then create a numpy row vector from the norm
     norm = np.array([[element for element in norm]])
-    return np.dot(norm, matrix)
+    # and we dot it with the original matrix
+    positive = np.dot(norm, matrix)
+    # finally we shave the error from the positive and return it
+    return shave(positive)
 
 
-def positive_null(matrix):
-    n = np.transpose(null(matrix))
-    if n.shape[0] == 0:
-        'empty nullspace found'
+def positive_nullspace_vector(matrix, verbose=True):
+    """
+    positive_nullspace_vector(matrix) - This function takes a matrix and tries to find
+    a nullspace vector that has only positive entries. If it finds one it returns that
+    vector, if it doesn't it returns None. (The vector is returned as a column vector)
+    """
+    # first we get the nullspace of the matrix
+    N = nullspace(matrix)
+    # we check to see if the nullspace is empty
+    if N.shape[0] == 0:
+        # no positive to be found here
+        if verbose: print 'nullspace is empty'
         return None
-    print 'found non-empty nullspace'
-    n = shave(n)
-    try:
-        'positive found for nullspace'
-        return np.transpose(positive(n))
-    except Issue:
-        print 'no positive found for nullspace'
+    # we shave off any error
+    N = shave(N)
+    # now to generate the positive we need to transpose N, because right not the nullspace vectors
+    # are its columns and we need them to be rows for this to work properly
+    N = np.transpose(N)
+    # now we can try to get the positive for this matrix
+    pos = positive(N)
+    # we check to see if a positive was found
+    if pos is not None:
+        # we found it! but it's gonna be a row vectors and nullspace vectors should be columns
+        # so we'll transpose it before we send it on its merry way
+        pos = np.transpose(pos)
+        if verbose: print 'positive found'
+        return pos
+    else:
+        # in this case no positive was found
+        if verbose: print 'no positive found'
         return None
-
-
