@@ -3,6 +3,7 @@ from issue import Issue
 from fractions import Fraction, gcd
 import numpy as np
 from numpy.linalg import svd
+from math import sqrt
 
 
 def reflect(_list):
@@ -13,72 +14,73 @@ def dot(vector1, vector2):
     return sum([vector1[i] * vector2[i] for i in range(len(vector1))])
 
 
-class Divider(object):
-    # the svm calculator works well until one vector belongs to both classes
+def normalize(vector):
+    length = sqrt(sum([element ** 2 for element in vector]))
+    if length == 0.0:
+        return [element for element in vector]
+    else:
+        return [element / length for element in vector]
 
-    def __init__(self):
-        self.vectors = set()
-        self.training_data = []
-        self.classifications = []
-        self.svm = SVC(kernel='linear')
 
-    def add(self, vector):
-        size = abs(sum(vector))
-        if size == 0: size = 1.0
-        normed_vector = [element / size for element in vector]
-        tup = tuple(normed_vector)
-        if tup not in self.vectors:
-            self.vectors.add(tup)
+def divider(vectors, C=1000.0, max_iter=-1):
+    """
+    divider(vectors) - this function takes a list of vectors (iterables
+    with number elements) and tries to find a hyperplane, passing through
+    the origin that divides the space the vectors lie in into two pieces
+    - one piece having all the vectors and the other piece being empty.
 
-    def _create_training_data(self):
-        """
-        In this step, we take all of our vectors and reflect them. The normal vectors will be one
-        group and the reflected vectors will be the second group. We do this because if we can split
-        these two groups, then we can find a hyperplane through the origin that divides the space into
-        two where all of the input vectors are on one side.
-        """
-        # we create the training data from our normal vectors and the reflected vectors
-        # svm doesn't like when one vector belongs to two classes so we are avoiding that here
-        # by only taking reflections that aren't in the vectors set
-        reflections = []
-        for vector in self.vectors:
-            reflection = tuple(reflect(vector))
-            if reflection not in self.vectors:
-                reflections.append(reflection)
-        self.training_data = [vector for vector in self.vectors] + reflections
-        # we create their classifications
-        self.classifications = [0] * len(self.vectors) + [1] * len(reflections)
-        # now we check to see if we have one of class 1. If we don't we know all the vectors have their reflection
-        # present, so either all of these vectors lie in the same plane (in which case we need to choose a side)
-        # or they don't (and this is going to fail regardless
-        # so we create that extra vector to pick a side
-        for arb_vector in self.vectors:
-            break
-        refl_vector = reflect(arb_vector)
-        new_vector = [(arb_vector[i] + refl_vector[i])/2.0 for i in range(len(arb_vector))]
-        self.training_data.append(new_vector)
-        self.classifications.append(1)
+    It does the splitting using a linear kernel support vector machine.
+    Of course svm's require two classes of data points to split. One class
+    is the input vectors. The other class is all of the vector reflections
+    that aren't equal to one of the input vectors.
 
-    def divide(self):
-        self._create_training_data()
-        self.svm.fit(self.training_data, self.classifications)
-        # we get the norm to the plane that our model thinks divides the two sets
-        # I know this looks weird, but the coefficients are an array in a list so its weird...
-        norm = self.svm.coef_[0].tolist()
-        # next we run through the vectors and see if their dot product with the norm is all
-        # positive, if the norm is the wrong way on the first dot product that isn't zero we flip it once
-        has_flipped = False
-        for vector in self.vectors:
-            product = dot(norm, vector)
-            if product < 0 and not has_flipped:
-                norm = reflect(norm)
-                product = dot(norm, vector)
-                has_flipped = True
-            if product < 0:
-                raise Issue('vectors cannot be divided')
-        # now we remove everything from the elements of the norm that are as small as or smaller than the margin
-        # now we can return the norm
-        return norm
+    It RETURNS the vector that is both normal to the splitting hyperplane
+    and also on the same side as the vectors that were split. If no such vector
+    exists (i.e. the hyperplane doesn't exist) then None is returned.
+    """
+    # first we normalize the vectors
+    vectors = [normalize(vector) for vector in vectors]
+    # next we create a set out of these vectors (for easy lookup when we need to
+    # check that reflections are not also equal to an input vector)
+    vectors = set(vectors)
+    # now we create the reflections
+    reflections = [reflect(vector) for vector in vectors if reflect(vector) not in vectors]
+    # now that we have our two classes, we can create our training data for the SVM
+    data = [vector for vector in vectors] + reflections
+    # and of course we need the classifications list as well (for the svm)
+    classifications = [0] * len(vectors) + [1] * len(reflections)
+    # now if all of the vectors had their reflection as another input vector. Then all vectors
+    # if they can be split by a plane, all lie in that plane. Now because we are splitting
+    # to get a norm that will give us a positive for the matrix defined by these vectors (as columns)
+    # we call this a failure case because the resultant norm would only give us a zero vector
+    # when multiplied by the matrix because it is pi/2 radians from all column vectors in M
+    if 1 not in classifications:
+        return None
+    # now we create and fit our svm. Note I use a large C by default
+    svm = SVC(kernel='linear', C=C, max_iter=max_iter)
+    svm.fit(data, classifications)
+    # next we grab the normal the svm has found
+    norm = svm.coef_[0].tolist()
+    # okay, so we have our expected norm, time to see if it actually divides the two
+    # it is possible that the norm is the wrong way around, so we will reserve a single flip
+    # the following boolean lets us know if the flip has happened.
+    has_flipped = False
+    for vector in vectors:
+        product = dot(vector, norm)
+        if product == 0:
+            continue
+        if product > 0 and not has_flipped:
+            # our norm must be on the right side in this case
+            has_flipped = True
+        elif product < 0 and not has_flipped:
+            # we need to flip our norm
+            norm = reflect(norm)
+            has_flipped = True
+        elif product < 0 and has_flipped:
+            # we found a vector that's on the wrong side of the plane - game over
+            return None
+    # if we've gotten to this point, then all has passed! so we return the norm
+    return norm
 
 
 # this gets the null space
@@ -95,7 +97,7 @@ def null(matrix, atol=10**-14, rtol=0):
 def shave(matrix, tol=10**-14):
     rows = []
     for row in matrix:
-        new_row = [Fraction(element).limit_denominator(int(1.0/tol)) for element in row]
+        new_row = [float(Fraction(element).limit_denominator(int(1.0/tol))) for element in row]
         rows.append(new_row)
     return np.array(rows)
 
@@ -118,11 +120,15 @@ def positive(matrix):
 def positive_null(matrix):
     n = np.transpose(null(matrix))
     if n.shape[0] == 0:
+        'empty nullspace found'
         return None
+    print 'found non-empty nullspace'
     n = shave(n)
     try:
+        'positive found for nullspace'
         return np.transpose(positive(n))
     except Issue:
+        print 'no positive found for nullspace'
         return None
 
 
