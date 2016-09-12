@@ -1,4 +1,4 @@
-from pyx import path, deco, text
+from pyx import path, deco, text, color
 from copy import copy
 
 def DrawEdge(edge, canvas):
@@ -25,16 +25,23 @@ def DrawEdge(edge, canvas):
         string = '%s/%s' % (numerator, denominator)
         """
     if not reversed:
-        if string:
-            canvas.stroke(path.line(tail[0], tail[1], head[0], head[1]), [deco.earrow, deco.curvedtext(string, textattrs=[text.vshift.mathaxis, text.size.tiny], exclude=0.1)])
+        if string and string[0] == '-':
+            canvas.stroke(path.line(tail[0], tail[1], head[0], head[1]), [deco.earrow, deco.curvedtext(string, textattrs=[text.vshift.mathaxis, text.size.tiny], exclude=0.1), color.rgb.red])
+        elif string and string[0] != '-':
+            canvas.stroke(path.line(head[0], head[1], tail[0], tail[1]), [deco.barrow, deco.curvedtext(string, textattrs=[text.vshift.mathaxis, text.size.tiny], exclude=0.1)])
         else:
             canvas.stroke(path.line(tail[0], tail[1], head[0], head[1]), [deco.earrow])
     else:
-        if string:
+        if string and string[0] == '-':
+            canvas.stroke(path.line(head[0], head[1], tail[0], tail[1]), [deco.barrow, deco.curvedtext(string, textattrs=[text.vshift.mathaxis, text.size.tiny], exclude=0.1), color.rgb.red])
+        elif string and string[0] != '-':
             canvas.stroke(path.line(head[0], head[1], tail[0], tail[1]), [deco.barrow, deco.curvedtext(string, textattrs=[text.vshift.mathaxis, text.size.tiny], exclude=0.1)])
         else:
             canvas.stroke(path.line(head[0], head[1], tail[0], tail[1]), [deco.barrow])
             
 def DrawBlock(block, canvas):
+    count = 1
     for edge in block.edges:
+        print 'drawing edge %s/%s' % (count, len(block.edges))
         DrawEdge(edge, canvas)
+        count += 1
