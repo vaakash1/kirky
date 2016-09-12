@@ -12,6 +12,7 @@ setup(name='kirky',
             'sympy',
             'pyx==0.12.1',
             'numpy',
+            'scipy',
             'sklearn',
         ],
         zip_safe=False)
