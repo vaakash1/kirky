@@ -30,8 +30,8 @@ with a space of dimension 3 and greater and I haven't implemented how to draw
 that quite yet.
 """
 
-m = Matrix([[-10,1, 1],[1,2, 1]])
+m = Matrix([[2,1],[1,2]])
 
-k = Kirchhoff(m, m.T, [1,1,1])
+k = Kirchhoff(m, m.T, [1,1])
 k.Find('drawings/kirchhoff')
 print(k.incidence_matrix)
