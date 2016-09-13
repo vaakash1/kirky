@@ -2,11 +2,12 @@
 
 class Edge(object):
 
-    def __init__(self, tail, head, id):
+    def __init__(self, tail, head, id, pin=-1):
         self.head = tuple(head)
         self.tail = tuple(tail)
         self.weight = None
         self.id = id
+        self.pin = pin
 
     def __hash__(self):
         return tuple(self.tail + self.head)
@@ -35,6 +36,12 @@ class Block(object):
         self.interior = set()
         self.frame = set()
         self.vertices = {}
+        self.current_pin = 0
+
+    def welcome_edge(self, edge):
+        edge.pin = self.current_pin
+        self.update_vertices(edge)
+        self.current_pin += 1
 
     def seed_frame(self, shape):
         # this just creates a rectangular lattice of unit size one tha fills a space
@@ -45,14 +52,14 @@ class Block(object):
             head = [0 for j in range(self.dimensions)]
             head[i] = 1
             edge = Edge(tail, head, i)
-            self.update_vertices(edge)
+            self.welcome_edge(edge)
             self.frame.add(edge)
         # now that we have our hyper cube we copy_and_add we will extend it to meet the size needs
         for i in range(self.dimensions):
             for j in range(shape[i]):
                 self.copy_and_add(self.frame, i, 1)
 
-    def populate_interior(self, edge, id):
+    def populate_interior(self, edge):
         # this takes in an example edge, and fills the interior with every such edge that could
         # possibly fit inside the frame (should be called right after seed_frame
         edge_dif = [edge.head[i] - edge.tail[i] for i in range(self.dimensions)]
@@ -62,12 +69,9 @@ class Block(object):
             needed_position = [position[i] + edge_dif[i] for i in range(self.dimensions)]
             if needed_position in self.vertices:
                 # okay cool we can add in the edge!
-                new_edge = Edge(position, needed_position, id)
+                new_edge = Edge(position, needed_position, edge.id)
+                self.welcome_edge(new_edge)
                 self.interior.add(new_edge)
-                tail_vertex = self.vertices[position]
-                head_vertex = self.vertices[needed_position]
-                tail_vertex.add_edge(new_edge, id, tail=True)
-                head_vertex.add_edge(new_edge, id, tail=False)
 
     def copy_and_add(self, edges, dimension, distance):
         new_edges = []
@@ -89,7 +93,7 @@ class Block(object):
             # first we add it to the new_edges list
             new_edges.add(new_edge)
             # then we need to update vertices and create new ones if needed
-            self.update_vertices(new_edge)
+            self.welcome_edge(edge)
         # finally we update edges by the new_edges
         edges.update(new_edges)
 
