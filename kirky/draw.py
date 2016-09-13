@@ -3,15 +3,15 @@ from copy import copy
 
 
 def DrawEdge(edge, canvas):
-    head = copy(edge.head)
-    tail = copy(edge.tail)
+    head = [float(element) for element in edge.head]
+    tail = [float(element) for element in edge.tail]
     reversed = False
     if tail[0] - head[0] > 0:
         reversed = True
     for i in range(0, len(head)):
         head[i] *= 4
         tail[i] *= 4
-    weight = edge.weight
+    weight = float(edge.weight)
     if weight == 0:
         return
     string = '%s' % weight

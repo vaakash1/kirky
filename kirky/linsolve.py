@@ -79,6 +79,7 @@ def divider(vectors, C=1000.0, max_iter=10000, tol=10.0**-13):
             norm = reflect(norm)
             has_flipped = True
         elif product < 0 and has_flipped:
+            print product
             # we found a vector that's on the wrong side of the plane - game over
             return None
     # if we've gotten to this point, then all has passed! so we return the norm

@@ -3,6 +3,7 @@ from block import Edge, Block
 from linsolve import positive_nullspace_vector
 from draw import DrawEdge
 from pyx import canvas
+from random import random
 
 
 class Kirchhoff(object):
@@ -48,11 +49,11 @@ class Kirchhoff(object):
             # for each vertex we have to create as many rows as there are columns in our block
             # each row will correspond to one dependent vector
             for i in range(self.matrix.shape[1]):
-                row = [0 for i in range(len(self.block.frame) + len(self.block.interior))]
+                row = [0 for k in range(len(self.block.frame) + len(self.block.interior))]
                 # first we add in the independent vectors to this row
                 for j in range(self.dimensions):
                     # we get the multipler for this independent vector
-                    multiplier = self.matrix[j,i]
+                    multiplier = self.matrix[j, i]
                     # now we can add in our independents into the row
                     in_edge, out_edge = vertex.cut[j]
                     if in_edge:
@@ -81,17 +82,30 @@ class Kirchhoff(object):
             edges[i].weight = solution[i, 0]
 
     def draw_edges(self, canvas):
+        count = 1
+        print 'DRAWING FRAME'
         for edge in self.block.frame:
+            print 'drawing edge %s/%s' % (count, len(self.block.frame))
             DrawEdge(edge, canvas)
+            count += 1
+        count = 1
+        print 'DRAWING INTERIOR'
         for edge in self.block.interior:
+            print 'drawing edge %s/%s' % (count, len(self.block.interior))
             DrawEdge(edge, canvas)
+            count += 1
 
     def find(self, file=''):
         dimension = 0
         while True:
+            print '--> generating linear system'
             linear_system = self.generate_linear_system()
+            print '     size is %s' % (linear_system.shape,)
+            print '--> trying to find a solution'
             solution = self.solve(linear_system)
-            if not solution:
+            if solution is None:
+                print '--> solution not found'
+                print '--> doubling along dimension %s' % dimension
                 self.block.double(dimension)
                 dimension = (dimension + 1) % self.dimensions
             else:
@@ -101,6 +115,15 @@ class Kirchhoff(object):
             c = canvas.canvas()
             self.draw_edges(c)
             c.writePDFfile(file)
+
+    def see_block(self, file):
+        for edge in self.block.frame:
+            edge.weight = random()
+        for edge in self.block.interior:
+            edge.weight = random()
+        c = canvas.canvas()
+        self.draw_edges(c)
+        c.writePDFfile(file)
 
 
 
