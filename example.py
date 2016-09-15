@@ -8,7 +8,7 @@ To generate the Kirchhoff Graph for the matrix
 """
 matrix = np.array([[2,1], [1,2]])
 k = Kirchhoff(matrix)
-k.find('../drawings/kirchhoff1')
+k.find('drawings/kirchhoff1')
 
 """
 To generate the Kirchhoff Graph for the matrix
@@ -17,7 +17,7 @@ To generate the Kirchhoff Graph for the matrix
 """
 matrix = np.array([[-2,-2],[2,3]])
 k = Kirchhoff(matrix)
-k.find('../drawings/kirchhoff2')
+k.find('drawings/kirchhoff2')
 
 """
 To generate the Kirchhoff Graph for the matrix
@@ -26,4 +26,4 @@ To generate the Kirchhoff Graph for the matrix
 """
 matrix = np.array([[2,1, 1],[1,2, 1]])
 k = Kirchhoff(matrix)
-k.find('../drawings/kirchhoff3')
+k.find('drawings/kirchhoff3')
