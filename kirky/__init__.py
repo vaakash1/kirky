@@ -1,9 +1,10 @@
 import numpy as np
-from .block import Edge, Block
-from .linsolve import positive_nullspace_vector
-from .draw import DrawEdge
+from block import Edge, Block
+from linsolve import positive_nullspace_vector
+from draw import DrawEdge
 from pyx import canvas
-from random import random
+from helpers import common_denominator
+from fractions import Fraction
 
 
 class Kirchhoff(object):
@@ -12,8 +13,9 @@ class Kirchhoff(object):
         self.matrix = matrix
         self.dimensions = matrix.shape[0]
         self.num_vectors = self.dimensions + matrix.shape[1]
+        self.steps = self.get_steps()
         # setup the block
-        self.block = Block(self.dimensions, self.num_vectors)
+        self.block = Block(self.dimensions, self.num_vectors, self.steps)
         first_frame_shape = self.get_first_frame_shape()
         self.block.seed_frame(first_frame_shape)
         interior_edges = self.get_interior_edges()
@@ -21,13 +23,27 @@ class Kirchhoff(object):
             self.block.populate_interior(edge)
         # and we're all set to go
 
+    def get_steps(self):
+        # we run through each of the dimensions (rows) of our input matrix
+        steps = []
+        for row in self.matrix:
+            # we want to find the least common denominator and add it to steps
+            steps.append(common_denominator([fraction for fraction in row]))
+        return steps
+
     def get_first_frame_shape(self):
         # this gets how big the seed frame will need to be
         shape = []
         for row in self.matrix:
             max_element = max([abs(element) for element in row])
             shape.append(max_element)
-        return shape
+        altered_shape = []
+        for element in shape:
+            if element < 1:
+                altered_shape.append(Fraction(1))
+            else:
+                altered_shape.append(element)
+        return [int(e) for e in altered_shape]
 
     def get_interior_edges(self):
         edges = []
@@ -36,10 +52,10 @@ class Kirchhoff(object):
         for row in trans:
             # each row is just the vector we're looking for given our construction
             head = [element for element in row]
-            tail = [0 for i in range(self.dimensions)]
+            tail = [Fraction(0) for i in range(self.dimensions)]
             edge = Edge(tail, head, id)
             edges.append(edge)
-            id += 1
+            id += Fraction(1)
         return edges
 
     def generate_linear_system(self):
@@ -118,9 +134,9 @@ class Kirchhoff(object):
 
     def see_block(self, file):
         for edge in self.block.frame:
-            edge.weight = random()
+            edge.weight = edge.pin
         for edge in self.block.interior:
-            edge.weight = random()
+            edge.weight = edge.pin
         c = canvas.canvas()
         self.draw_edges(c)
         c.writePDFfile(file)
