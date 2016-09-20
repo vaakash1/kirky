@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='kirky',
-        version='0.3',
+        version='0.4',
         description='A Kirchhoff Graph generator',
         url='http://github.com/erebuseternal/kirky',
         author='erebuseternal',
