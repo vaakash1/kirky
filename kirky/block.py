@@ -1,3 +1,4 @@
+from fractions import Fraction
 
 
 class Edge(object):
@@ -34,9 +35,10 @@ class Vertex(object):
 
 class Block(object):
 
-    def __init__(self, dimensions, num_vectors):
+    def __init__(self, dimensions, num_vectors, steps):
         self.num_vectors = num_vectors
         self.dimensions = dimensions
+        self.steps = steps
         self.shape = (0 for i in range(dimensions))
         self.interior = set()
         self.frame = set()
@@ -48,24 +50,54 @@ class Block(object):
         self.update_vertices(edge)
         self.current_pin += 1
 
+    def fill_vertex_frame(self):
+        # for each kind of of independent vector
+        for dimension in range(self.dimensions):
+            base_vector = [Fraction(0) for i in range(self.dimensions)]
+            base_vector[dimension] = Fraction(1)
+            # run through all of the vertices
+            for position in self.vertices:
+                # find the position of the appropriate head vertex
+                head_position = tuple([position[i] + base_vector[i] for i in range(self.dimensions)])
+                # see if the vertex exists
+                if head_position in self.vertices:
+                    # create the edge
+                    edge = Edge(position, head_position, dimension)
+                    # check to see if the edge already exists
+                    if edge not in self.frame:
+                        self.welcome_edge(edge)
+                        self.frame.add(edge)
+
+    def create_vertex_frame(self):
+        # we first create the vertex at the origin
+        origin = tuple([Fraction(0) for i in range(self.dimensions)])
+        vertex = Vertex(origin, self.num_vectors)
+        # we then seed our vertices with this vertex
+        self.vertices[origin] = vertex
+        # now for each dimension we get step[dimension] copies of each vertex 1/step[dimension] apart
+        # from the old vertices in the direction of the dimension
+        for dimension in range(self.dimensions):
+            old_positions = [position for position in self.vertices]
+            new_positions = []
+            steps = self.steps[dimension]
+            distance = Fraction(1, steps)
+            for position in old_positions:
+                for i in range(steps):
+                    # create the new position
+                    new_position = [e for e in position]
+                    new_position[dimension] += (i + 1) * distance
+                    # add the new position
+                    new_positions.append(tuple(new_position))
+            # now create vertex's using the new positions and add them to self.vertices
+            for position in new_positions:
+                vertex = Vertex(position, self.num_vectors)
+                self.vertices[position] = vertex
+
     def create_hyper_cube(self):
-        # we create our first edge
-        i = 0
-        tail = [0 for j in range(self.dimensions)]
-        head = [1] + [0 for j in range(self.dimensions - 1)]
-        edge = Edge(tail, head, i)
-        self.welcome_edge(edge)
-        self.frame.add(edge)
-        for i in range(1, self.dimensions):
-            old_vertices = [self.vertices[key] for key in self.vertices]
-            self.copy_and_add(self.frame, i, 1)
-            for vertex in old_vertices:
-                tail = [element for element in vertex.position]
-                head = [element for element in vertex.position]
-                head[i] += 1
-                edge = Edge(tail, head, i)
-                self.welcome_edge(edge)
-                self.frame.add(edge)
+        # first we create the frame of vertices
+        self.create_vertex_frame()
+        # then we fill that vertex frame
+        self.fill_vertex_frame()
 
     def seed_frame(self, shape):
         # this just creates a rectangular lattice of unit size one tha fills a space
@@ -74,8 +106,8 @@ class Block(object):
         self.create_hyper_cube()
         # now that we have our hyper cube we copy_and_add we will extend it to meet the size needs
         for i in range(self.dimensions):
-            for j in range(shape[i] - 1):
-                self.copy_and_add(self.frame, i, 1)
+            for j in range(int((shape[i] - 1) * self.steps[i])):
+                self.copy_and_add(self.frame, i, Fraction(1, self.steps[i]))
         self.shape = shape
 
     def populate_interior(self, edge):
@@ -146,11 +178,9 @@ class Block(object):
         # aforementioned. Then we set the shape size along the input dimension to its new
         # value and we are done
 
-        # first we tackle the frame
-        self.copy_and_add(self.frame, dimension, self.shape[dimension])
-        # then we tackle the interior
-        for i in range(self.shape[dimension]):
-            self.copy_and_add(self.interior, dimension, 1)
+        for i in range(int(self.shape[dimension] * self.steps[dimension])):
+            self.copy_and_add(self.interior, dimension, Fraction(1, self.steps[dimension]))
+            self.copy_and_add(self.frame, dimension, Fraction(1, self.steps[dimension]))
         # and then we update the new shape
         self.shape[dimension] += self.shape[dimension]
 
