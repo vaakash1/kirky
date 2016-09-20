@@ -1,9 +1,9 @@
 import numpy as np
-from block import Edge, Block
-from linsolve import positive_nullspace_vector
-from draw import DrawEdge
+from .block import Edge, Block
+from .linsolve import positive_nullspace_vector
+from .draw import DrawEdge
 from pyx import canvas
-from helpers import common_denominator
+from .helpers import common_denominator
 from fractions import Fraction
 
 
@@ -43,7 +43,7 @@ class Kirchhoff(object):
                 altered_shape.append(Fraction(1))
             else:
                 altered_shape.append(element)
-        return [int(e) for e in altered_shape]
+        return [e for e in altered_shape]
 
     def get_interior_edges(self):
         edges = []
@@ -55,7 +55,7 @@ class Kirchhoff(object):
             tail = [Fraction(0) for i in range(self.dimensions)]
             edge = Edge(tail, head, id)
             edges.append(edge)
-            id += Fraction(1)
+            id += 1
         return edges
 
     def generate_linear_system(self):
@@ -89,13 +89,23 @@ class Kirchhoff(object):
         return np.array(rows)
 
     def solve(self, linear_system):
-        return positive_nullspace_vector(linear_system)
+        vector_solution = positive_nullspace_vector(linear_system)
+        return vector_solution
+
+    def normalize_solution(self, vector_solution):
+        # turn the solution to a list for ease of use
+        solution = [vector_solution[i, 0] for i in range(vector_solution.shape[0])]
+        min_element = 0
+        for element in solution:
+            if min_element == 0 or min_element > element and element != 0:
+                min_element = element
+        return [element / min_element for element in solution]
 
     def set_edge_weights(self, solution):
         edges = [edge for edge in self.block.frame] + [edge for edge in self.block.interior]
         edges = sorted(edges, key=lambda edge: edge.pin)
         for i in range(len(edges)):
-            edges[i].weight = solution[i, 0]
+            edges[i].weight = solution[i]
 
     def draw_edges(self, canvas):
         count = 1
@@ -118,14 +128,15 @@ class Kirchhoff(object):
             linear_system = self.generate_linear_system()
             print '     size is %s' % (linear_system.shape,)
             print '--> trying to find a solution'
-            solution = self.solve(linear_system)
-            if solution is None:
+            vector_solution = self.solve(linear_system)
+            if vector_solution is None:
                 print '--> solution not found'
                 print '--> doubling along dimension %s' % dimension
                 self.block.double(dimension)
                 dimension = (dimension + 1) % self.dimensions
             else:
                 break
+        solution = self.normalize_solution(vector_solution)
         self.set_edge_weights(solution)
         if file:
             c = canvas.canvas()

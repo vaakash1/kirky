@@ -92,7 +92,6 @@ class Block(object):
             for position in new_positions:
                 vertex = Vertex(position, self.num_vectors)
                 self.vertices[position] = vertex
-        print self.vertices
 
     def create_hyper_cube(self):
         # first we create the frame of vertices
@@ -107,8 +106,8 @@ class Block(object):
         self.create_hyper_cube()
         # now that we have our hyper cube we copy_and_add we will extend it to meet the size needs
         for i in range(self.dimensions):
-            for j in range(shape[i] - 1):
-                self.copy_and_add(self.frame, i, 1)
+            for j in range(int((shape[i] - 1) * self.steps[i])):
+                self.copy_and_add(self.frame, i, Fraction(1, self.steps[i]))
         self.shape = shape
 
     def populate_interior(self, edge):
@@ -179,7 +178,7 @@ class Block(object):
         # aforementioned. Then we set the shape size along the input dimension to its new
         # value and we are done
 
-        for i in range(self.shape[dimension] * self.steps[dimension]):
+        for i in range(int(self.shape[dimension] * self.steps[dimension])):
             self.copy_and_add(self.interior, dimension, Fraction(1, self.steps[dimension]))
             self.copy_and_add(self.frame, dimension, Fraction(1, self.steps[dimension]))
         # and then we update the new shape
