@@ -1,3 +1,6 @@
+from fractions import Fraction
+
+
 def add_vectors(v1, v2):
     i = 0
     result = []
@@ -20,8 +23,8 @@ class Tableau(object):
         self.constraint_vectors = []
         self.constraint_values = []
         # we will find the pivot row while we are at it
-        for i in range(A.shape[0]):
-            constraint_vector = [e for e in A[i, :]]
+        for i in range(len(A)):
+            constraint_vector = [e for e in A[i][:]]
             self.constraint_vectors.append(constraint_vector)
             self.constraint_values.append(b[i])
         # and finally find the basis
@@ -30,6 +33,7 @@ class Tableau(object):
         self.pivot_column = None
         self.pivot_row = None
         self.find_pivot()
+        self.solution = []
 
     def find_basis(self, given=None):
         if given:
@@ -57,8 +61,6 @@ class Tableau(object):
         i = 0
         smallest_value = 1
         for value in self.objective_vector:
-            if i in self.basis:
-                continue
             if value < 0 and value < smallest_value:
                 smallest_value = value
                 self.pivot_column = i
@@ -79,6 +81,19 @@ class Tableau(object):
             if ratio < smallest_ratio:
                 smallest_ratio = ratio
                 self.pivot_row = i
+            i += 1
+
+    def get_solution(self):
+        self.solution = []
+        i = 0
+        for element in self.constraint_values:
+            if i in self.basis:
+                self.solution.append(element)
+            else:
+                if self.exact:
+                    self.solution.append(Fraction(0,1))
+                else:
+                    self.solution.append(0.0)
             i += 1
 
     def is_solved(self):
@@ -113,6 +128,83 @@ class Tableau(object):
         # last but not least we find the new basis and pivot
         self.find_basis(self.pivot_column)
         self.find_pivot()
+
+
+class Simplex(object):
+
+    def __init__(self, c, d, A, b, exact=False):
+        self.c = c
+        self.A = A
+        self.d = d
+        self.b = b
+        self.exact = exact
+        self.is_feasible = True
+        self.solution = None
+        self.unbounded = None
+
+    def create_auxilary_tableau(self):
+        j = len(self.A[0])
+        aux_A = []
+        if self.exact:
+            one = Fraction(1,1)
+            zero = Fraction(0,1)
+        else:
+            one = 1.0
+            zero = 0.0
+        for i in range(len(self.A)):
+            if self.b[i] < 0:
+                row = [-e for e in self.A[i][:]] + [zero] * len(self.A)
+            else:
+                row = [e for e in self.A[i][:]] + [zero] * len(self.A)
+            row[j] = one
+            aux_A.append(row)
+            j += 1
+        aux_c = []
+        for j in range(len(self.A[0])):
+            total = 0.0
+            for i in range(len(self.A)):
+                if self.b[i] < 0:
+                    total -= self.A[i][j]
+                else:
+                    total += self.A[i][j]
+            aux_c.append(total)
+        aux_d = -1 * sum([abs(e) for e in self.b])
+        aux_b = [abs(e) for e in self.b]
+        return Tableau(aux_c, aux_d, aux_A, aux_b)
+
+    def run(self, tableau):
+        while not tableau.is_unbounded() and not tableau.is_solved():
+            tableau.pivot()
+
+    def prep(self):
+        aux_tableau = self.create_auxilary_tableau()
+        self.run(aux_tableau)
+        # now we check to see if there is a feasible solution
+        if aux_tableau.objective_value == 0.0:
+            self.is_feasible = True
+            self.solution = aux_tableau.solution[:len(self.A[0])]
+            new_A = []
+            for i in range(len(self.A)):
+                row = aux_tableau.constraint_vectors[i][:len(self.A[0])]
+                new_A.append(row)
+            new_b = aux_tableau.constraint_values
+            self.A = new_A
+            self.b = new_b
+        else:
+            self.is_feasible = False
+
+    def solve(self):
+        if not self.is_feasible:
+            return None
+        tableau = Tableau(self.c, self.d, self.A, self.b)
+        self.run(tableau)
+        if tableau.is_unbounded():
+            self.unbounded = True
+        else:
+            self.unbounded = False
+
+
+
 
 
 
