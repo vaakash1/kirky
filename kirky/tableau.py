@@ -18,7 +18,7 @@ class Tableau(object):
         # setup the object vector (first row of tableau as written)
         self.objective_vector = [-e for e in c]
         # get the objective value (to make the matrix augmented)
-        self.objective_value = [d]
+        self.objective_value = d
         # setup the constraint vectors as values
         self.constraint_vectors = []
         self.constraint_values = []
@@ -34,6 +34,7 @@ class Tableau(object):
         self.pivot_row = None
         self.find_pivot()
         self.solution = []
+        self.get_solution()
 
     def find_basis(self, given=None):
         if given:
@@ -75,7 +76,8 @@ class Tableau(object):
         for constraint_vector in self.constraint_vectors:
             constraint_value = self.constraint_values[i]
             column_value = constraint_vector[self.pivot_column]
-            if column_value < 0:
+            if column_value <= 0:
+                i += 1
                 continue
             ratio = constraint_value / column_value
             if ratio < smallest_ratio:
@@ -128,6 +130,7 @@ class Tableau(object):
         # last but not least we find the new basis and pivot
         self.find_basis(self.pivot_column)
         self.find_pivot()
+        self.get_solution()
 
 
 class Simplex(object):
@@ -141,6 +144,7 @@ class Simplex(object):
         self.is_feasible = True
         self.solution = None
         self.unbounded = None
+        self.objective = None
 
     def create_auxilary_tableau(self):
         j = len(self.A[0])
@@ -198,6 +202,8 @@ class Simplex(object):
             return None
         tableau = Tableau(self.c, self.d, self.A, self.b)
         self.run(tableau)
+        self.solution = tableau.solution
+        self.objective = tableau.objective_value
         if tableau.is_unbounded():
             self.unbounded = True
         else:
