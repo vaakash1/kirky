@@ -86,17 +86,14 @@ class Tableau(object):
             i += 1
 
     def get_solution(self):
-        self.solution = []
-        i = 0
-        for element in self.constraint_values:
-            if i in self.basis:
-                self.solution.append(element)
-            else:
-                if self.exact:
-                    self.solution.append(Fraction(0,1))
-                else:
-                    self.solution.append(0.0)
-            i += 1
+        if self.exact:
+            self.solution = [Fraction(0, 1)] * len(self.constraint_vectors[0])
+        else:
+            self.solution = [0.0] * len(self.constraint_vectors[0])
+        for j in self.basis:
+            for i in range(len(self.constraint_vectors)):
+                if self.constraint_vectors[i][j] == 1.0:
+                    self.solution[j] = self.constraint_values[i]
 
     def is_solved(self):
         if self.pivot_column is None and self.pivot_row is None:
@@ -135,12 +132,14 @@ class Tableau(object):
 
 class Simplex(object):
 
-    def __init__(self, c, d, A, b, exact=False):
+    def __init__(self, A, b, c, d=0.0, exact=False):
         self.c = c
         self.A = A
         self.d = d
         self.b = b
         self.exact = exact
+        if exact:
+            self.d = Fraction(0, 1)
         self.is_feasible = True
         self.solution = None
         self.unbounded = None
@@ -174,7 +173,7 @@ class Simplex(object):
             aux_c.append(total)
         aux_d = -1 * sum([abs(e) for e in self.b])
         aux_b = [abs(e) for e in self.b]
-        return Tableau(aux_c, aux_d, aux_A, aux_b)
+        return Tableau(aux_c, aux_d, aux_A, aux_b, self.exact)
 
     def run(self, tableau):
         while not tableau.is_unbounded() and not tableau.is_solved():
@@ -200,7 +199,7 @@ class Simplex(object):
     def solve(self):
         if not self.is_feasible:
             return None
-        tableau = Tableau(self.c, self.d, self.A, self.b)
+        tableau = Tableau(self.c, self.d, self.A, self.b, self.exact)
         self.run(tableau)
         self.solution = tableau.solution
         self.objective = tableau.objective_value
