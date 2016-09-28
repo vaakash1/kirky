@@ -1,10 +1,12 @@
 import numpy as np
 from .block import Edge, Block
-from .linsolve import positive_nullspace_vector
+from .linsolve import positive_null_space_vector
 from .draw import DrawEdge
 from pyx import canvas
 from .helpers import common_denominator
 from fractions import Fraction
+from sympy import Matrix
+from .linsolve import nullspace
 
 
 class Kirchhoff(object):
@@ -85,11 +87,10 @@ class Kirchhoff(object):
                     row[out_edge.pin] = -1.0
                 # and now we can add our row to rows
                 rows.append(row)
-        # now we create a matrix from these rows
         return np.array(rows)
 
     def solve(self, linear_system):
-        vector_solution = positive_nullspace_vector(linear_system)
+        vector_solution = positive_null_space_vector(linear_system)
         return vector_solution
 
     def normalize_solution(self, vector_solution):

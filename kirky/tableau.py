@@ -105,6 +105,20 @@ class Tableau(object):
             return True
         return False
 
+    def clean(self):
+        for vector in self.constraint_vectors:
+            for i in range(len(vector)):
+                if abs(vector[i]) <= 10 ** -12:
+                    vector[i] *= 0.0
+        for i in range(len(self.constraint_values)):
+            if abs(self.constraint_values[i]) <= 10 ** -12:
+                self.constraint_values[i] *= 0.0
+        for i in range(len(self.objective_vector)):
+            if abs(self.objective_vector[i]) <= 10 ** -12:
+                self.objective_vector[i] *= 0.0
+        if abs(self.objective_value) <= 10 ** -12:
+            self.objective_value *= 0.0
+
     def pivot(self):
         divisor = self.constraint_vectors[self.pivot_row][self.pivot_column]
         pivot_vector = [e / divisor for e in self.constraint_vectors[self.pivot_row]]
@@ -125,6 +139,8 @@ class Tableau(object):
         self.objective_vector = add_vectors(self.objective_vector, adjustment_vector)
         self.objective_value += pivot_value * coefficient
         # last but not least we find the new basis and pivot
+        if not self.exact:
+            self.clean()
         self.find_basis(self.pivot_column)
         self.find_pivot()
         self.get_solution()
@@ -183,8 +199,18 @@ class Simplex(object):
         aux_tableau = self.create_auxilary_tableau()
         self.run(aux_tableau)
         # now we check to see if there is a feasible solution
-        if aux_tableau.objective_value == 0.0:
-            self.is_feasible = True
+        print aux_tableau.objective_value
+        if self.exact:
+            if aux_tableau.objective_value == 0.0:
+                self.is_feasible = True
+            else:
+                self.is_feasible = False
+        else:
+            if abs(aux_tableau.objective_value) <= 10 ** -12:
+                self.is_feasible = True
+            else:
+                self.is_feasible = False
+        if self.is_feasible:
             self.solution = aux_tableau.solution[:len(self.A[0])]
             new_A = []
             for i in range(len(self.A)):
@@ -193,8 +219,6 @@ class Simplex(object):
             new_b = aux_tableau.constraint_values
             self.A = new_A
             self.b = new_b
-        else:
-            self.is_feasible = False
 
     def solve(self):
         if not self.is_feasible:
