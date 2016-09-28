@@ -1,4 +1,4 @@
-from .tableau import Simplex
+from tableau import Simplex
 from fractions import Fraction
 from time import sleep
 from random import sample
@@ -26,6 +26,7 @@ class Splitter(object):
             print 'no vectors found'
             self.infeasible = True
         else:
+            print negatives(vectors)
             self.exact = exact
             self.A = []
             self.dimension = len(vectors[0])

@@ -1,11 +1,11 @@
 import numpy as np
 from .block import Edge, Block
-from .linsolve import positive_null_space_vector
+from .linsolve import exact_positive_null_space_vector
 from .draw import DrawEdge
 from pyx import canvas
 from .helpers import common_denominator
 from fractions import Fraction
-from sympy import Matrix
+from sympy import Matrix, fraction, Rational
 from .linsolve import nullspace
 
 
@@ -67,7 +67,7 @@ class Kirchhoff(object):
             # for each vertex we have to create as many rows as there are columns in our block
             # each row will correspond to one dependent vector
             for i in range(self.matrix.shape[1]):
-                row = [0 for k in range(len(self.block.frame) + len(self.block.interior))]
+                row = [Rational(0,1) for k in range(len(self.block.frame) + len(self.block.interior))]
                 # first we add in the independent vectors to this row
                 for j in range(self.dimensions):
                     # we get the multipler for this independent vector
@@ -75,22 +75,22 @@ class Kirchhoff(object):
                     # now we can add in our independents into the row
                     in_edge, out_edge = vertex.cut[j]
                     if in_edge:
-                        row[in_edge.pin] = -1.0 * multiplier
+                        row[in_edge.pin] = Rational(-1 * multiplier.numerator, multiplier.denominator)
                     if out_edge:
-                        row[out_edge.pin] = 1.0 * multiplier
+                        row[out_edge.pin] = Rational(1 * multiplier.numerator, multiplier.denominator)
                 # and now we add in the negative of our dependents so that we can solve
                 # for the nullspace later
                 in_edge, out_edge = vertex.cut[self.dimensions + i]
                 if in_edge:
-                    row[in_edge.pin] = 1.0
+                    row[in_edge.pin] = Rational(1,1)
                 if out_edge:
-                    row[out_edge.pin] = -1.0
+                    row[out_edge.pin] = Rational(-1,1)
                 # and now we can add our row to rows
                 rows.append(row)
-        return np.array(rows)
+        return Matrix(rows)
 
     def solve(self, linear_system):
-        vector_solution = positive_null_space_vector(linear_system)
+        vector_solution = exact_positive_null_space_vector(linear_system)
         return vector_solution
 
     def normalize_solution(self, vector_solution):

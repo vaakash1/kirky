@@ -199,7 +199,6 @@ class Simplex(object):
         aux_tableau = self.create_auxilary_tableau()
         self.run(aux_tableau)
         # now we check to see if there is a feasible solution
-        print aux_tableau.objective_value
         if self.exact:
             if aux_tableau.objective_value == 0.0:
                 self.is_feasible = True

@@ -4,7 +4,7 @@ import numpy as np
 from numpy.linalg import svd
 from math import sqrt
 from .splitter import Splitter
-
+from sympy import Matrix, Rational
 
 def reflect(_list):
     return [-a for a in _list]
@@ -46,7 +46,7 @@ def nullspace(matrix, atol=10**-13, rtol=0):
     return ns
 
 
-def shave(matrix, tol=10**-13):
+def shave(matrix, tol=10**-12):
     """
     shave(matrix, tol=10**-13) - This function takes a matrix and goes through each of its elements
     using python's Fraction to find the closes number that does not have any part smaller than the
@@ -57,6 +57,18 @@ def shave(matrix, tol=10**-13):
     max_denominator = int(1.0 / tol)
     for row in matrix:
         new_row = [float(Fraction(element).limit_denominator(max_denominator)) for element in row]
+        rows.append(new_row)
+    return np.array(rows)
+
+def zero_shave(matrix):
+    rows = []
+    for row in matrix:
+        new_row = []
+        for e in row:
+            if abs(e) <= 10 ** -12:
+                new_row.append(0.0)
+            else:
+                new_row.append(e)
         rows.append(new_row)
     return np.array(rows)
 
@@ -98,7 +110,7 @@ def positive_null_space_vector(matrix, verbose=True):
         if verbose: print 'nullspace is empty'
         return None
     # we shave off any error
-    N = shave(N)
+    N = zero_shave(N)
     # now to generate the positive we need to transpose N, because right not the nullspace vectors
     # are its columns and we need them to be rows for this to work properly
     N = np.transpose(N)
@@ -115,3 +127,30 @@ def positive_null_space_vector(matrix, verbose=True):
         # in this case no positive was found
         if verbose: print 'no positive found'
         return None
+
+def exact_positive_null_space_vector(matrix, verbose=True):
+    N = matrix.nullspace()
+    if len(N) == 0:
+        print 'no nullspace found'
+        return None
+    rows = []
+    # we grab the rows of this matrix as our vectors
+    for i in range(N[0].shape[0]):
+        row = []
+        for column in N:
+            row.append(Fraction(column[i,0].p, column[i,0].q))
+        rows.append(row)
+    splitter = Splitter(rows, exact=True)
+    norm = splitter.split()
+    if norm is None:
+        print 'no norm found'
+        return None
+    # now we make the transpose of N
+    rows = []
+    for column in N:
+        row = [e for e in column]
+        rows.append(row)
+    trans = Matrix(rows)
+    symp_norm = Matrix([[Rational(e.numerator, e.denominator) for e in norm]])
+    result = symp_norm * trans
+    return result.T
