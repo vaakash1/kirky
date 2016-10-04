@@ -30,15 +30,41 @@ class Tableau(object):
         # and finally find the basis
         self.basis = []
         self.find_basis()
+        self.mend_objective()
         self.pivot_column = None
         self.pivot_row = None
         self.find_pivot()
         self.solution = []
         self.get_solution()
 
+    def mend_objective(self):
+        for i in self.basis:
+            if self.objective_vector[i] == 0:
+                continue
+            coefficient = self.objective_vector[i]
+            for j in range(0, len(self.constraint_vectors)):
+                if self.constraint_vectors[j][i] == 1:
+                    break
+            for k in range(len(self.constraint_vectors[0])):
+                if k == i:
+                    continue
+                element = self.constraint_vectors[j][k]
+                self.objective_vector[k] += coefficient * -1 * element
+            value = self.constraint_values[j]
+            self.objective_value += -1 * coefficient * value
+            # and finally set the non zero element we found that started this whole thing to zero
+            if self.exact:
+                self.objective_vector[i] = Fraction(0, 1)
+            else:
+                self.objective_vector[i] = 0.0
+
     def find_basis(self, given=None):
-        if given:
+        used_i = []
+        if given is not None:
             self.basis = [given]
+            for i in range(len(self.constraint_vectors)):
+                if self.constraint_vectors[i][given] == 1:
+                    used_i.append(i)
         else:
             self.basis = []
         for j in range(len(self.objective_vector)):
@@ -49,13 +75,17 @@ class Tableau(object):
             found_one = False
             just_one = True
             for i in range(len(self.constraint_vectors)):
+                if i in used_i:
+                    continue
                 if self.constraint_vectors[i][j] == 1:
                     if not found_one:
                         found_one = True
+                        current_i = i
                     else:
                         just_one = False
-            if just_one:
+            if just_one and found_one:
                 self.basis.append(j)
+                used_i.append(current_i)
 
     def find_pivot(self):
         self.pivot_column = None
@@ -154,7 +184,7 @@ class Simplex(object):
         self.d = d
         self.b = b
         self.exact = exact
-        if exact:
+        if exact and d == 0:
             self.d = Fraction(0, 1)
         self.is_feasible = True
         self.solution = None
@@ -180,13 +210,20 @@ class Simplex(object):
             j += 1
         aux_c = []
         for j in range(len(self.A[0])):
-            total = 0.0
+            if self.exact:
+                total = Fraction(0, 1)
+            else:
+                total = 0.0
             for i in range(len(self.A)):
                 if self.b[i] < 0:
                     total -= self.A[i][j]
                 else:
                     total += self.A[i][j]
             aux_c.append(total)
+        if self.exact:
+            aux_c += [Fraction(0, 1)] * (len(aux_A[0]) - len(self.A[0]))
+        else:
+            aux_c += [0.0] * (len(aux_A[0]) - len(self.A[0]))
         aux_d = -1 * sum([abs(e) for e in self.b])
         aux_b = [abs(e) for e in self.b]
         return Tableau(aux_c, aux_d, aux_A, aux_b, self.exact)
@@ -223,6 +260,12 @@ class Simplex(object):
         if not self.is_feasible:
             return None
         tableau = Tableau(self.c, self.d, self.A, self.b, self.exact)
+        print tableau.basis
+        for vector in tableau.constraint_vectors:
+            print vector
+        print tableau.constraint_values
+        print tableau.objective_vector
+        print tableau.is_solved()
         self.run(tableau)
         self.solution = tableau.solution
         self.objective = tableau.objective_value
