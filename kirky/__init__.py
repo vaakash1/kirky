@@ -26,6 +26,35 @@ class Kirchhoff(object):
             self.block.populate_interior(edge)
         # and we're all set to go
 
+    def try_size(self, block_shape, file=''):
+        # first we setup the block anew
+        self.block = Block(self.dimensions, self.num_vectors, self.steps)
+        first_frame_shape = self.get_first_frame_shape()
+        self.block.seed_frame(first_frame_shape)
+        interior_edges = self.get_interior_edges()
+        for edge in interior_edges:
+            self.block.populate_interior(edge)
+        # now we try to grow our block to the right size
+        if not self.block.grow_to_size(block_shape):
+            return None
+        print '--> generating linear system'
+        linear_system = self.generate_linear_system()
+        print '     size is %s, %s' % (len(linear_system), len(linear_system[0]))
+        print '--> trying to find a solution'
+        vector_solution = self.solve(linear_system)
+        if vector_solution is None:
+            print '--> solution not found'
+            return None
+        else:
+            print '--> solution found'
+        solution = self.normalize_solution(vector_solution)
+        self.set_edge_weights(solution)
+        if file:
+            c = canvas.canvas()
+            self.draw_edges(c)
+            c.writePDFfile(file)
+
+
     def get_steps(self):
         # we run through each of the dimensions (rows) of our input matrix
         steps = []

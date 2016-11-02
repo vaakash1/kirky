@@ -177,11 +177,24 @@ class Block(object):
         # Then we grow the interior by copy_and_adding it one step at a time up to the shape size
         # aforementioned. Then we set the shape size along the input dimension to its new
         # value and we are done
-
         for i in range(int(self.shape[dimension] * self.steps[dimension])):
             self.copy_and_add(self.interior, dimension, Fraction(1, self.steps[dimension]))
             self.copy_and_add(self.frame, dimension, Fraction(1, self.steps[dimension]))
         # and then we update the new shape
         self.shape[dimension] += self.shape[dimension]
+
+    def grow_to_size(self, block_shape):
+        deltas = [block_shape[i] - self.shape[i] for i in range(len(self.shape))]
+        negatives = [i for i in range(len(deltas)) if deltas[i] < 0]
+        if negatives:
+            print 'cannot grow to size: block is already bigger along dimensions %s' % negatives
+            return False
+        for i in range(len(deltas)):
+            for j in range(int(deltas[i] * self.steps[i])):
+                self.copy_and_add(self.interior, i, Fraction(1, self.steps[i]))
+                self.copy_and_add(self.frame, i, Fraction(1, self.steps[i]))
+        self.shape = block_shape
+        return True
+
 
 
