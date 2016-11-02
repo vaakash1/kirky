@@ -151,6 +151,52 @@ class Kirchhoff(object):
             self.draw_edges(c)
             c.writePDFfile(file)
 
+    def incidence(self):
+        # this should be called after obtaining a solution
+        edgetionary = {}
+        incidence_matrix = []
+        positions = []
+        label_matrix = []
+        edges = [edge for edge in self.block.frame] + [edge for edge in self.block.interior]
+        counter = 0
+        for edge in edges:
+            if edge.weight != 0:
+                edgetionary[edge.pin] = counter
+                row = [Fraction(0)] * self.num_vectors
+                row[edge.id] = Fraction(1)
+                label_matrix.append(row)
+                counter += 1
+        num_columns = len(edgetionary)
+        for position in self.block.vertices:
+            non_zero_cut = False
+            row = [Fraction(0)] * num_columns
+            for double in self.block.vertices[position].cut:
+                if double[0] is not None and double[0].pin in edgetionary:
+                    column = edgetionary[double[0].pin]
+                    row[column] = -double[0].weight
+                    non_zero_cut = True
+                if double[1] is not None and double[1].pin in edgetionary:
+                    column = edgetionary[double[1].pin]
+                    row[column] = double[1].weight
+                    non_zero_cut = True
+            if non_zero_cut:
+                incidence_matrix.append(row)
+                positions.append(list(position))
+        return incidence_matrix, label_matrix, positions
+
+    def graphical_indicence(self):
+        incidence_matrix = self.incidence()[0]
+        graphical = []
+        for row in incidence_matrix:
+            graphical_row = []
+            for e in row:
+                if e == 0:
+                    graphical_row.append(0)
+                else:
+                    graphical_row.append(int(e / abs(e)))
+            graphical.append(graphical_row)
+        return graphical
+
     def see_block(self, file):
         for edge in self.block.frame:
             edge.weight = edge.pin
