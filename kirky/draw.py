@@ -1,5 +1,4 @@
 from pyx import path, deco, text, color
-from copy import copy
 
 
 def DrawEdge(edge, canvas):

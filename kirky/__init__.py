@@ -1,12 +1,9 @@
 import numpy as np
 from .block import Edge, Block
-from .linsolve import exact_positive_null_space_vector
 from .draw import DrawEdge
 from pyx import canvas
 from .helpers import common_denominator
 from fractions import Fraction, gcd
-from sympy import Matrix, fraction, Rational
-from .linsolve import nullspace
 from degenerate_tableau import solve_kirky
 
 
