@@ -11,7 +11,7 @@ setup(name='kirky',
         install_requires=[
             'pyx==0.12.1',
             'numpy',
-            'scipy',
+            'sympy',
             'sklearn',
         ],
         zip_safe=False)
