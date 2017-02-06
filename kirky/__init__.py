@@ -4,7 +4,9 @@ from .draw import DrawEdge
 from pyx import canvas
 from .helpers import common_denominator
 from fractions import Fraction, gcd
-from degenerate_tableau import solve_kirky
+from tableau_spark import solve_kirky
+from random import random
+from pyspark import SparkContext
 
 
 class Kirchhoff(object):
@@ -22,6 +24,10 @@ class Kirchhoff(object):
         for edge in interior_edges:
             self.block.populate_interior(edge)
         # and we're all set to go
+
+    def get_spark_context(self):
+        unique_app_name = str(int(random() * 10 ** 6))
+        return SparkContext('local', unique_app_name)
 
     def try_size(self, block_shape, file=''):
         # first we setup the block anew
@@ -116,8 +122,8 @@ class Kirchhoff(object):
                 rows.append(row)
         return rows
 
-    def solve(self, linear_system):
-        vector_solution = solve_kirky(linear_system)
+    def solve(self, linear_system, spark_context):
+        vector_solution = solve_kirky(linear_system, spark_context)
         return vector_solution
 
     def normalize_solution(self, vector_solution):
@@ -156,13 +162,14 @@ class Kirchhoff(object):
             count += 1
 
     def find(self, file=''):
+        spark_context = self.get_spark_context()
         dimension = 0
         while True:
             print '--> generating linear system'
             linear_system = self.generate_linear_system()
             print '     size is %s, %s' % (len(linear_system), len(linear_system[0]))
             print '--> trying to find a solution'
-            vector_solution = self.solve(linear_system)
+            vector_solution = self.solve(linear_system, spark_context)
             if vector_solution is None:
                 print '--> solution not found'
                 print '--> doubling along dimension %s' % dimension
