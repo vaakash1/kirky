@@ -13,16 +13,16 @@ class Row(object):
         return self.contents[item]
 
     def __add__(self, other):
-        return[self.contents[i] + other.contents[i] for i in range(len(self.contents))]
+        return Row([self.contents[i] + other.contents[i] for i in range(len(self.contents))])
 
     def __rmul__(self, other):
-        return [element * other for element in self.contents]
+        return Row([element * other for element in self.contents])
 
     def __mul__(self, other):
-        return [element * other for element in self.contents]
+        return Row([element * other for element in self.contents])
 
     def __div__(self, other):
-        return [element / other for element in self.contents]
+        return Row([element / other for element in self.contents])
 
     def __eq__(self, other):
         for i in range(len(self.contents)):
@@ -67,16 +67,19 @@ class DegenerateTableau(object):
         self.pivot_column_index = None
         # first we find the pivot_column which corresponds to the first
         # negative objective value
-        for i in range(len(self.objective_vector) - 1):
-            if self.objective_vector[i] < 0:
+        for i in range(len(self.objective_row) - 1):
+            if self.objective_row[i] < 0:
                 self.pivot_column_index = i
                 break
         # if we didn't find a pivot column there is no point finding the pivot row
-        if self.pivot_column is None:
+        if self.pivot_column_index is None:
             return
         # next we look for our pivot row
         # we will only consider rows that have a positive value in this column
-        candidate_rows = self.constraint_rows.filter(lambda row: row[self.pivot_column_index] > 0)
+        # NOTE we have to place the pivot_column_index in a local variable so we don't
+        # send the whole Tableau class to spark
+        pivot_column_index = self.pivot_column_index
+        candidate_rows = self.constraint_rows.filter(lambda row: row[pivot_column_index] > 0)
         # if we have no candidate rows we return with self.pivot_row still set to None
         if candidate_rows.count() == 0:
             return
@@ -85,13 +88,13 @@ class DegenerateTableau(object):
         # the row over the pivot column value for this row
 
         def select_by_ratio(row1, row2):
-            ratio1 = row1[-1] / row1[self.pivot_column_index]
-            ratio2 = row2[-1] / row2[self.pivot_column_index]
+            ratio1 = row1[-1] / row1[pivot_column_index]
+            ratio2 = row2[-1] / row2[pivot_column_index]
             if ratio1 < ratio2:
                 return row1
             elif ratio1 > ratio2:
                 return row2
-            elif row1[self.pivot_column_index] < row2[self.pivot_column_index]:
+            elif row1[pivot_column_index] < row2[pivot_column_index]:
                 return row1
             else:
                 return row2
@@ -100,20 +103,23 @@ class DegenerateTableau(object):
 
     def pivot(self):
         # we will use the following function to update the constraint rows
-
+        pivot_row = self.pivot_row
+        pivot_column_index = self.pivot_column_index
         def update(row):
             # this function will zero out the pivot column in any rows beside the pivot row
             # and will rescale the pivot row so the element in the pivot column is one
-            if row == self.pivot_row:
-                return row / row[self.pivot_column_index]
+            if row == pivot_row:
+                return row / row[pivot_column_index]
             else:
-                pivot_row_coefficient = -1 * row[self.pivot_column_index] / self.pivot_row[self.pivot_column_index]
-                return row + pivot_row_coefficient * self.pivot_row
+                pivot_row_coefficient = -1 * row[pivot_column_index] / pivot_row[pivot_column_index]
+                return row + pivot_row_coefficient * pivot_row
 
-        self.constraint_rows.map(lambda row: update(row))
+        self.constraint_rows = self.constraint_rows.map(lambda row: update(row))
         # next we use the pivot row to zero out the pivot column in the objective
         pivot_row_coefficient = -1 * self.objective_row[self.pivot_column_index] / self.pivot_row[self.pivot_column_index]
         self.objective_row += pivot_row_coefficient * self.pivot_row
+        # now we go ahead and update the pivot
+        self.find_pivot()
 
     def find_basis(self, given=None):
         # we want to form a pairing between the rows of our contraints and the corresponding
@@ -134,13 +140,16 @@ class DegenerateTableau(object):
         def there_can_only_be_one(row1, row2):
             # this function takes two rows and returns a row filled with elements derived in the following
             # way from the original rows
+            # * make the resulting element 0 if both row1 and row2's elements are zero
             # * make the resulting element 1 if row1 xor row2 has a 1 and the other has a zero
             # * make it -1 otherwise
             # this way, when taking over all rows in sequence we will know which columns are basis columns
             # and which aren't
             new_list = []
             for i in range(len(row1)):
-                if (row1[i] == 1 and row2[i] == 0) or (row1[i] == 0 and row2[i] == 1):
+                if row1[i] == 0 and row2[i] == 0:
+                    new_list.append(0)
+                elif (row1[i] == 1 and row2[i] == 0) or (row1[i] == 0 and row2[i] == 1):
                     new_list.append(1)
                 else:
                     new_list.append(-1)
@@ -197,7 +206,7 @@ class DegenerateTableau(object):
         # first we update the basis
         self.find_basis()
         # then we setup a list of zeros of the right type
-        self.solution = [self.element_type(0)] * len(self.constraint_vectors[0])
+        self.solution = [self.element_type(0)] * (len(self.objective_row) - 1)
         # and finally we grab the non-zero elements of our solution
         for i in self.basis_dict:
             self.solution[i] = self.basis_dict[i][-1]
