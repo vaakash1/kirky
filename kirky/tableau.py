@@ -216,36 +216,60 @@ class Tableau(object):
         return self.is_solved()
 
 
-def solve_kirky(E, spark_context):
+def solve_kirky(E):
+    """
+    Inputs:
+        E - the matrix corresponding to the conditions the frame vector weights must satisfy in
+            order to be Kirchhoff. Note that it does not contain the conditions for those
+            weights to be positive or their sum to be greater than one.
+
+    Outputs:
+        if there is no solution the output is None. If there is a solution that solution is returned
+        as a list
+
+    In this function our aim is to take these constraints, add our conditions for
+    nontrivial weights and then setup a phase I simplex step which we then try to solve. (Note that
+    simply by this being simplex our weights will be guaranteed to be positive).
+
+    NOTES:
+        (a) we create the condition for our weights to have a positive sum.
+        (b) in taking the above step we added in an addition variable to our problem so we have
+            to add a new row (all zeroes) to E
+        (c) we add our sum condition row to E
+        (d) the right hand side of the equation Ex=b is now going to be all zeroes except for the last
+            value which will be our sum_condition value. So we create that vector now as it will be needed
+            for the simplex method
+        (e) now we setup our phase I tableau. This tableau adds as many auxiliary variables as we have rows
+            to form a basis that our simplex method will then try to zero out. To see what we are doing in
+            the next few lines refer to:
+        (f) we form the objective function for this phase I step
+        (g) we form the objective value for this phase I step
+        (h) create the Tableau given all of this information
+        (i) the failure conditions for this phase I step are that we simply cannot solve the tableau
+            or that the objective_value once solved (which is the last row in the augmented objective
+            vector the tableau has created) is not zero.
+        (j) the solution will contain all those extra variables we created, but because we don't care
+            about them we just throw them away.
+    """
     num_weights = len(E[0])
-    # we begin by creating the row that will represent the positive sum condition
-    sum_condition_row = [Fraction(1)] * num_weights + [Fraction(-1)]
+    sum_condition_row = [Fraction(1)] * num_weights + [Fraction(-1)]                                # (a)
     sum_condition_value = Fraction(1)
-    # we now add on the extra column for all the rows of E
-    for row in E:
+    for row in E:                                                                                   # (b)
         row.append(Fraction(0))
-    # we now augment E with the sum condition row
-    E.append(sum_condition_row)
-    b = [Fraction(0)] * (len(E) - 1) + [sum_condition_value]
-    # now we will use a phase I approach for simplex to find a feasible solution
-    # if it exists
-    # we begin by adding in our auxiliary variables
-    num_auxiliary_variables = len(E)
+    E.append(sum_condition_row)                                                                     # (c)
+    b = [Fraction(0)] * (len(E) - 1) + [sum_condition_value]                                        # (d)
+    num_auxiliary_variables = len(E)                                                                # (e)
     i = 0
     for row in E:
         addition = [Fraction(0)] * num_auxiliary_variables
         addition[i] = Fraction(1)
         row.extend(addition)
         i += 1
-    # we create our objective function
-    c = [Fraction(0)] * (len(E[0]) - num_auxiliary_variables) + [Fraction(1)] * num_auxiliary_variables
-    d = Fraction(0)
-    # now we solve this phase I step
-    tabby = DegenerateTableau(c, d, E, b, spark_context)
-    while not tabby.is_solved():
-        tabby.pivot()
-    if tabby.objective_row[-1] != 0:
+    objective_vector = [Fraction(0)] * (len(E[0]) - num_auxiliary_variables) + \
+        [Fraction(1)] * num_auxiliary_variables                                                     # (f)
+    objective_value = Fraction(0)                                                                   # (g)
+    tableau = Tableau(objective_vector, objective_value, E, b)                                      # (h)
+    if not tableau.solve() or tableau.objective_row[-1] != 0:
         return None
     else:
-        tabby.get_solution()
-        return tabby.solution[:num_weights]
+        return tableau.solution[:num_weights]                                                       # (j)
