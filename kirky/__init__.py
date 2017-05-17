@@ -1,12 +1,11 @@
 import numpy as np
-from .block import Edge, Block
+from .block import Edge, Frame
 from .draw import DrawEdge
 from pyx import canvas
 from .helpers import common_denominator
 from fractions import Fraction, gcd
 from tableau_spark import solve_kirky
 from random import random
-from pyspark import SparkContext
 
 
 class Kirchhoff(object):
@@ -17,28 +16,28 @@ class Kirchhoff(object):
         self.num_vectors = self.dimensions + matrix.shape[1]
         self.steps = self.get_steps()
         # setup the block
-        self.block = Block(self.dimensions, self.num_vectors, self.steps)
+        self.frame = Frame(self.dimensions, self.num_vectors, self.steps)
         first_frame_shape = self.get_first_frame_shape()
-        self.block.seed_frame(first_frame_shape)
-        interior_edges = self.get_interior_edges()
-        for edge in interior_edges:
-            self.block.populate_interior(edge)
+        self.frame.seed_frame(first_frame_shape)
+        cross_vectors = self.get_cross_vectors()
+        for vector in cross_vectors:
+            self.frame.populate(vector)
         # and we're all set to go
 
     def get_spark_context(self):
         unique_app_name = str(int(random() * 10 ** 6))
         return SparkContext('local', unique_app_name)
 
-    def try_size(self, block_shape, file=''):
+    def try_size(self, frame_shape, file=''):
         # first we setup the block anew
-        self.block = Block(self.dimensions, self.num_vectors, self.steps)
+        self.frame = Frame(self.dimensions, self.num_vectors, self.steps)
         first_frame_shape = self.get_first_frame_shape()
-        self.block.seed_frame(first_frame_shape)
-        interior_edges = self.get_interior_edges()
-        for edge in interior_edges:
-            self.block.populate_interior(edge)
+        self.frame.seed_frame(first_frame_shape)
+        cross_vectors = self.get_cross_vectors()
+        for vector in cross_vectors:
+            self.frame.populate(vector)
         # now we try to grow our block to the right size
-        if not self.block.grow_to_size(block_shape):
+        if not self.frame.grow_to_size(frame_shape):
             return None
         print '--> generating linear system'
         linear_system = self.generate_linear_system()
@@ -80,7 +79,7 @@ class Kirchhoff(object):
                 altered_shape.append(element)
         return [e for e in altered_shape]
 
-    def get_interior_edges(self):
+    def get_cross_vectors(self):
         edges = []
         trans = np.transpose(self.matrix)
         id = self.dimensions
@@ -95,12 +94,12 @@ class Kirchhoff(object):
 
     def generate_linear_system(self):
         rows = []
-        for position in self.block.vertices:
-            vertex = self.block.vertices[position]
+        for position in self.frame.vertices:
+            vertex = self.frame.vertices[position]
             # for each vertex we have to create as many rows as there are columns in our block
             # each row will correspond to one dependent vector
             for i in range(self.matrix.shape[1]):
-                row = [Fraction(0) for k in range(len(self.block.frame) + len(self.block.interior))]
+                row = [Fraction(0) for k in range(len(self.frame.coordinate_vectors) + len(self.frame.cross_vectors))]
                 # first we add in the independent vectors to this row
                 for j in range(self.dimensions):
                     # we get the multipler for this independent vector
@@ -142,22 +141,22 @@ class Kirchhoff(object):
         return normalized_solution
 
     def set_edge_weights(self, solution):
-        edges = [edge for edge in self.block.frame] + [edge for edge in self.block.interior]
+        edges = [edge for edge in self.frame.coordinate_vectors] + [edge for edge in self.frame.cross_vectors]
         edges = sorted(edges, key=lambda edge: edge.pin)
         for i in range(len(edges)):
             edges[i].weight = solution[i]
 
     def draw_edges(self, canvas):
         count = 1
-        print 'DRAWING FRAME'
-        for edge in self.block.frame:
-            print 'drawing edge %s/%s' % (count, len(self.block.frame))
+        print 'DRAWING COORDINATE VECTORS'
+        for edge in self.frame.coordinate_vectors:
+            print 'drawing edge %s/%s' % (count, len(self.frame.coordinate_vectors))
             DrawEdge(edge, canvas)
             count += 1
         count = 1
-        print 'DRAWING INTERIOR'
-        for edge in self.block.interior:
-            print 'drawing edge %s/%s' % (count, len(self.block.interior))
+        print 'DRAWING CROSS VECTORS'
+        for edge in self.frame.cross_vectors:
+            print 'drawing edge %s/%s' % (count, len(self.frame.cross_vectors))
             DrawEdge(edge, canvas)
             count += 1
 
@@ -173,7 +172,7 @@ class Kirchhoff(object):
             if vector_solution is None:
                 print '--> solution not found'
                 print '--> doubling along dimension %s' % dimension
-                self.block.double(dimension)
+                self.frame.double(dimension)
                 dimension = (dimension + 1) % self.dimensions
             else:
                 break
@@ -190,7 +189,7 @@ class Kirchhoff(object):
         incidence_matrix = []
         positions = []
         label_matrix = []
-        edges = [edge for edge in self.block.frame] + [edge for edge in self.block.interior]
+        edges = [edge for edge in self.frame.coordinate_vectors] + [edge for edge in self.frame.coordinate_vectors]
         counter = 0
         for edge in edges:
             if edge.weight != 0:
@@ -200,10 +199,10 @@ class Kirchhoff(object):
                 label_matrix.append(row)
                 counter += 1
         num_columns = len(edgetionary)
-        for position in self.block.vertices:
+        for position in self.frame.vertices:
             non_zero_cut = False
             row = [Fraction(0)] * num_columns
-            for double in self.block.vertices[position].cut:
+            for double in self.frame.vertices[position].cut:
                 if double[0] is not None and double[0].pin in edgetionary:
                     column = edgetionary[double[0].pin]
                     row[column] = -double[0].weight
@@ -230,10 +229,10 @@ class Kirchhoff(object):
             graphical.append(graphical_row)
         return graphical
 
-    def see_block(self, file):
-        for edge in self.block.frame:
+    def see_frame(self, file):
+        for edge in self.frame.coordinate_vectors:
             edge.weight = edge.pin
-        for edge in self.block.interior:
+        for edge in self.frame.cross_vectors:
             edge.weight = edge.pin
         c = canvas.canvas()
         self.draw_edges(c)

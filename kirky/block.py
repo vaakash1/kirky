@@ -32,7 +32,7 @@ class Vertex(object):
             self.cut[id][0] = edge
 
 
-class Block(object):
+class Frame(object):
 
     def __init__(self, dimensions, num_vectors, steps):
         self.num_vectors = num_vectors
