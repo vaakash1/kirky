@@ -211,7 +211,7 @@ class Frame(object):
         self.create_hyper_cube()                                                                        # (a)
         for i in range(self.dimensions):                                                                # (b)
             for j in range(int((shape[i] - 1) * self.steps[i])):
-                self.copy_and_add(self.frame, i, Fraction(1, self.steps[i]))
+                self.copy_and_add(self.coordinate_vectors, i, Fraction(1, self.steps[i]))
         self.shape = shape                                                                              # (c)
 
     def populate(self, cross_vector):

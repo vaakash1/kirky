@@ -272,4 +272,5 @@ def solve_kirky(E):
     if not tableau.solve() or tableau.objective_row[-1] != 0:
         return None
     else:
+        tableau.get_solution()
         return tableau.solution[:num_weights]                                                       # (j)

@@ -165,7 +165,7 @@ class Kirchhoff(object):
     def find(self, file=''):
         """
         This is the meat of the algorithm. It takes the frame and runs the steps outlined
-        in the report. So if you've read the report this should be pretty self explanatory. 
+        in the report. So if you've read the report this should be pretty self explanatory.
         """
         dimension = 0
         while True:
