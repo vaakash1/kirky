@@ -3,11 +3,14 @@
 Dependencies: you will need LaTex installed on your machine. 
 
 For Fedora (or other version of linux that use yum) all you need to do is run
-    sudo yum install texlive
+    `sudo yum install texlive`
+    
 For Ubuntu and Debian
-    sudo apt-get install texlive
+    `sudo apt-get install texlive`
+    
 For Windows I direct you to this link:
     http://www.tug.org/protext/
+    
 For Mac OS I direct you to this link:
     http://www.tug.org/mactex/
 
