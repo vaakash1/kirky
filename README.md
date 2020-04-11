@@ -1,3 +1,5 @@
+# Installing Kirky
+
 Dependencies: you will need LaTex installed on your machine. 
 
 For Fedora (or other version of linux that use yum) all you need to do is run
