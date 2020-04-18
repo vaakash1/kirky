@@ -1,4 +1,5 @@
 from fractions import Fraction
+from future.utils import viewitems
 
 
 class Tableau(object):
@@ -145,7 +146,7 @@ class Tableau(object):
         self.basis_dict = {i: None for i in range(len(self.objective_row) - 1)}                         # (a)
         for i in range(len(self.constraint_rows)):
             row = self.constraint_rows[i]
-            current_columns = self.basis_dict.keys()                                                    # (b)
+            current_columns = list(self.basis_dict.keys())                                                    # (b)
             for column in current_columns:
                 row_with_one = self.basis_dict[column]                                                  # (c)
                 if row_with_one is None and row[column] == 1:
@@ -177,7 +178,7 @@ class Tableau(object):
         So this is just a preparatory step to ensure that is the case before we get started
         solving the tableau.
         """
-        for column, row_with_one in self.basis_dict.iteritems():
+        for column, row_with_one in viewitems(self.basis_dict):
             coefficient = self.objective_row[column]
             self.objective_row = [self.objective_row[i] - coefficient * self.constraint_rows[row_with_one][i]
                                   for i in range(len(self.objective_row))]
@@ -203,7 +204,7 @@ class Tableau(object):
         self.find_basis()                                                                               # (a)
         zero = self.objective_row[0] - self.objective_row[0]                                            # (b)
         self.solution = [zero] * (len(self.objective_row) - 1)                                          # (c)
-        for column, row_with_one in self.basis_dict.iteritems():                                        # (d)
+        for column, row_with_one in viewitems(self.basis_dict):                                        # (d)
             self.solution[column] = self.constraint_rows[row_with_one][-1]
 
     def solve(self):

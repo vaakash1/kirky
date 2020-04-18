@@ -9,7 +9,8 @@ setup(name='kirky',
         license='None',
         packages=['kirky'],
         install_requires=[
-            'pyx==0.12.1',
+            'future',
+            'pyx',
             'numpy'
         ],
         zip_safe=False)

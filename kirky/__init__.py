@@ -55,7 +55,7 @@ class Kirchhoff(object):
         """
         steps = []
         for row in self.matrix:
-            steps.append(common_denominator([fraction for fraction in row]))
+            steps.append(int(common_denominator([fraction for fraction in row])))
         return steps
 
     def get_first_frame_shape(self):
@@ -150,15 +150,15 @@ class Kirchhoff(object):
 
     def draw_edges(self, canvas):
         count = 1
-        print 'DRAWING COORDINATE VECTORS'
+        print('DRAWING COORDINATE VECTORS')
         for edge in self.frame.coordinate_vectors:
-            print 'drawing edge %s/%s' % (count, len(self.frame.coordinate_vectors))
+            print('drawing edge %s/%s' % (count, len(self.frame.coordinate_vectors)))
             DrawEdge(edge, canvas)
             count += 1
         count = 1
-        print 'DRAWING CROSS VECTORS'
+        print('DRAWING CROSS VECTORS')
         for edge in self.frame.cross_vectors:
-            print 'drawing edge %s/%s' % (count, len(self.frame.cross_vectors))
+            print('drawing edge %s/%s' % (count, len(self.frame.cross_vectors)))
             DrawEdge(edge, canvas)
             count += 1
 
@@ -169,14 +169,14 @@ class Kirchhoff(object):
         """
         dimension = 0
         while True:
-            print '--> generating linear system'
+            print('--> generating linear system')
             linear_system = self.generate_linear_system()
-            print '     size is %s, %s' % (len(linear_system), len(linear_system[0]))
-            print '--> trying to find a solution'
+            print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
+            print('--> trying to find a solution')
             vector_solution = self.solve(linear_system)
             if vector_solution is None:
-                print '--> solution not found'
-                print '--> doubling along dimension %s' % dimension
+                print('--> solution not found')
+                print('--> doubling along dimension %s' % dimension)
                 self.frame.double(dimension)
                 dimension = (dimension + 1) % self.dimensions
             else:
@@ -253,24 +253,19 @@ class Kirchhoff(object):
         # now we try to grow our block to the right size
         if not self.frame.grow_to_size(frame_shape):
             return None
-        print '--> generating linear system'
+        print('--> generating linear system')
         linear_system = self.generate_linear_system()
-        print '     size is %s, %s' % (len(linear_system), len(linear_system[0]))
-        print '--> trying to find a solution'
+        print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
+        print('--> trying to find a solution')
         vector_solution = self.solve(linear_system)
         if vector_solution is None:
-            print '--> solution not found'
+            print('--> solution not found')
             return None
         else:
-            print '--> solution found'
+            print('--> solution found')
         solution = self.normalize_solution(vector_solution)
         self.set_edge_weights(solution)
         if file:
             c = canvas.canvas()
             self.draw_edges(c)
             c.writePDFfile(file)
-
-
-
-
-

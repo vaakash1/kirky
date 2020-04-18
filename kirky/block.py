@@ -260,7 +260,7 @@ class Frame(object):
         deltas = [block_shape[i] - self.shape[i] for i in range(len(self.shape))]
         negatives = [i for i in range(len(deltas)) if deltas[i] < 0]
         if negatives:
-            print 'cannot grow to size: block is already bigger along dimensions %s' % negatives
+            print('cannot grow to size: block is already bigger along dimensions %s' % negatives)
             return False
         for i in range(len(deltas)):
             for j in range(int(deltas[i] * self.steps[i])):
