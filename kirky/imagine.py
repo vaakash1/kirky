@@ -3,6 +3,7 @@ import networkx as nx
 from sklearn.decomposition import PCA
 from collections import defaultdict
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 
 class Indexer(object):
@@ -18,6 +19,7 @@ class Indexer(object):
 def create_tables(edges):
 	vertices = defaultdict(Indexer())
 	adjacencies_dict = defaultdict(dict)
+	labels_dict = defaultdict(dict)
 	for edge in edges:
 		head = tuple([float(e) for e in edge.head])
 		tail = tuple([float(e) for e in edge.tail])
@@ -27,6 +29,8 @@ def create_tables(edges):
 			tail_id = vertices[tail]
 			adjacencies_dict[tail_id][head_id] = weight
 			adjacencies_dict[head_id][tail_id] = -weight
+			labels_dict[tail_id][head_id] = int(edge.id)
+			labels_dict[head_id][tail_id] = int(edge.id)
 	vertices_list = [tuple()] * len(vertices)
 	for vertex, index in vertices.items():
 		vertices_list[index] = vertex
@@ -35,7 +39,11 @@ def create_tables(edges):
 	for tail_id, _dict in adjacencies_dict.items():
 		for head_id, weight in _dict.items():
 			adjacencies[tail_id][head_id] = weight
-	return vertices, adjacencies
+	labels = np.zeros((len(vertices_list), len(vertices_list)))
+	for tail_id, _dict in labels_dict.items():
+		for head_id, weight in _dict.items():
+			labels[tail_id][head_id] = weight
+	return vertices, adjacencies, labels
 
 
 def pca_projection(vertices):
@@ -44,31 +52,42 @@ def pca_projection(vertices):
 	return vertices, pca
 
 
-def build_nx_graph(adjacencies):
+def defined_projection(x, y, vertices):
+	y_sqr_norm = np.linalg.norm(y) ** 2
+	x_sqr_norm = np.linalg.norm(x) ** 2
+	transform = np.asarray([x / x_sqr_norm, y / y_sqr_norm]).T
+	return vertices.dot(transform)
+
+
+def build_nx_graph(adjacencies, labels):
 	weighted_edges = []
-	weights = {}
+	edge_labels = {}
 	for tail_id in range(adjacencies.shape[0]):
 		for head_id in range(tail_id):
 			weight = adjacencies[tail_id][head_id]
+			label = labels[tail_id][head_id]
 			if weight > 0:
 				weighted_edges.append((tail_id, head_id, weight))
-				weights[(tail_id, head_id)] = weight
+				edge_labels[(tail_id, head_id)] = 's%s x %s' % (int(label), weight)
 			elif weight < 0:
 				weighted_edges.append((head_id, tail_id, weight))
-				weights[(head_id, tail_id)] = -weight
+				edge_labels[(head_id, tail_id)] = 's%s x %s' % (int(label), -weight)
 	DG = nx.DiGraph()
 	DG.add_weighted_edges_from(weighted_edges)
-	return DG, weights
+	return DG, edge_labels
 
 
-def draw(k, file_path):
+def draw(k, file_path, x=None, y=None):
 	edges = list(k.frame.coordinate_vectors) + list(k.frame.cross_vectors)
-	vertices, adjacencies = create_tables(edges)
-	projected_vertices, _ = pca_projection(vertices)
-	graph, weights = build_nx_graph(adjacencies)
+	vertices, adjacencies, labels = create_tables(edges)
+	if x is None or y is None:
+		projected_vertices, _ = pca_projection(vertices)
+	else:
+		projected_vertices = defined_projection(x, y, vertices)
+	graph, edge_labels = build_nx_graph(adjacencies, labels)
 	plt.clf()
-	plt.figure()
+	plt.figure(figsize=(10,10))
 	x = nx.draw_networkx_edges(graph, pos=projected_vertices)
 	nodes = nx.draw_networkx_edge_labels(graph, pos=projected_vertices,
-										 edge_labels=weights)
+										 edge_labels=edge_labels, label_pos=0.2)
 	plt.savefig(file_path)
