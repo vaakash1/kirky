@@ -45,3 +45,6 @@ k = Kirchhoff(matrix)
 k.find()
 incidence_matrix, label_matrix, positions = k.incidence()
 ```
+
+### A Note on the Output
+Technically the Kirchhoff solver implemented here simply ensures that you end up with a graph whose vertices lie in the row space of the original matrix. But to be truly Kirchhoff a second requirement must be met - that the cycles in the graph form a basis for the null space of the input matrix. This implementation does not check for the second condition for we have never found a case (except for trivial graphs having no edges) where the second condition did not follow from the first. Issue is that it hasn't been formally proven that this must always be true, so just make sure to check for yourself that the cycles are all there and you should be good to go!
