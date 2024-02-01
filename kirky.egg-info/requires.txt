@@ -1,0 +1,7 @@
+future
+matplotlib==3.2.1
+networkx==2.4
+numpy
+pyx
+sklearn==0.0
+tqdm
