@@ -4,6 +4,8 @@ from sklearn.decomposition import PCA
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from mpl_toolkits.mplot3d import Axes3D
+
 
 
 class Indexer(object):
@@ -88,6 +90,24 @@ def draw(k, file_path, x=None, y=None):
 	plt.clf()
 	plt.figure(figsize=(10,10))
 	x = nx.draw_networkx_edges(graph, pos=projected_vertices)
-	nodes = nx.draw_networkx_edge_labels(graph, pos=projected_vertices,
-										 edge_labels=edge_labels, label_pos=0.2)
+	nodes = nx.draw_networkx_edge_labels(graph, pos=projected_vertices, font_size=6,
+										 edge_labels=edge_labels, label_pos=0.65)
 	plt.savefig(file_path)
+
+
+def draw3d(k, file_path):
+	edges = list(k.frame.coordinate_vectors) + list(k.frame.cross_vectors)
+	tail_coordinates = [[int(coord) for coord in edge.tail] for edge in edges]
+	head_coordinates = [[int(coord) for coord in edge.head] for edge in edges]
+	edge_components = np.subtract(head_coordinates, tail_coordinates)
+	X, Y, Z= zip(*(tail_coordinates))
+	U, V, W = zip(*edge_components)
+	x_lim = [min(X+U), max(X+U)]
+	y_lim = (min(Y+V), max(Y+V))
+	z_lim = (min(Z+W), max(Z+W))
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+	ax.quiver(X, Y, Z, U, V, W, arrow_length_ratio=0.1, pivot='tail')
+	plt.savefig(file_path, format='png')
+	plt.show()
+	plt.close()
