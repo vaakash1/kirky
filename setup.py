@@ -15,7 +15,7 @@ setup(name='kirky',
             'numpy==1.20.0',
             'pyx',
             'sklearn==0.0',
-            'scipy==1.10.1'
+            'scipy==1.10.1',
             'tqdm',
         ],
         zip_safe=False)
