@@ -15,8 +15,8 @@ matrix = np.array([[Fraction(2),Fraction(1), Fraction(1)],
 				   [Fraction(1),Fraction(1), Fraction(2)]])
 k = Kirchhoff(matrix)
 k.find_scipy()
+#draw(k, 'drawings/kirchhoff5_scipy.png', x=[0.5, 0, 1], y=[-0.5, 1, 0])
 draw3d(k, 'drawings/kirchhoff5_3d.png')
-
 
 '''
 
