@@ -3,7 +3,8 @@ from .block import Edge, Frame
 from .draw import DrawEdge
 from pyx import canvas
 from .helpers import common_denominator
-from fractions import Fraction, gcd
+from fractions import Fraction
+from math import gcd
 from .tableau import solve_kirky, solve_kirky_scipy
 
 
