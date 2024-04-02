@@ -23,7 +23,7 @@ def create_tables(edges):
 	for edge in edges:
 		head = tuple([float(e) for e in edge.head])
 		tail = tuple([float(e) for e in edge.tail])
-		weight = float(edge.weight)
+		weight = int(edge.weight)
 		if weight != 0:
 			head_id = vertices[head]
 			tail_id = vertices[tail]
@@ -68,16 +68,16 @@ def build_nx_graph(adjacencies, labels):
 			label = labels[tail_id][head_id]
 			if weight > 0:
 				weighted_edges.append((tail_id, head_id, weight))
-				edge_labels[(tail_id, head_id)] = 's%s x %s' % (int(label), weight)
+				edge_labels[(tail_id, head_id)] = '%s' % (int(weight))
 			elif weight < 0:
 				weighted_edges.append((head_id, tail_id, weight))
-				edge_labels[(head_id, tail_id)] = 's%s x %s' % (int(label), -weight)
+				edge_labels[(head_id, tail_id)] = '%s' % (int(-weight))
 	DG = nx.DiGraph()
 	DG.add_weighted_edges_from(weighted_edges)
 	return DG, edge_labels
 
 
-def draw(k, file_path, x=None, y=None):
+def draw(k, file_path, x=[1, 0], y=[0, 1]):
 	edges = list(k.frame.coordinate_vectors) + list(k.frame.cross_vectors)
 	vertices, adjacencies, labels = create_tables(edges)
 	if x is None or y is None:
@@ -88,6 +88,35 @@ def draw(k, file_path, x=None, y=None):
 	plt.clf()
 	plt.figure(figsize=(10,10))
 	x = nx.draw_networkx_edges(graph, pos=projected_vertices)
-	nodes = nx.draw_networkx_edge_labels(graph, pos=projected_vertices,
-										 edge_labels=edge_labels, label_pos=0.2)
+	nodes = nx.draw_networkx_edge_labels(graph, pos=projected_vertices, font_size=12,
+										 edge_labels=edge_labels, label_pos=0.38)
+	plt.scatter(projected_vertices[:, 0], projected_vertices[:, 1], color='blue', s=100)
 	plt.savefig(file_path)
+
+def draw3d(k, file_path):
+	edges = list(k.frame.coordinate_vectors) + list(k.frame.cross_vectors)
+	edges = [edge for edge in edges if edge.weight != 0]
+	tail_coordinates = [[int(coord) for coord in edge.tail] for edge in edges]
+	head_coordinates = [[int(coord) for coord in edge.head] for edge in edges]
+	text_coordinates = np.divide(np.add(tail_coordinates, head_coordinates), 2)
+	edge_components = np.subtract(head_coordinates, tail_coordinates)
+	X, Y, Z= zip(*(tail_coordinates))
+	U, V, W = zip(*edge_components)
+	x_lim = [min(X+U), max(X+U)]
+	y_lim = (min(Y+V), max(Y+V))
+	z_lim = (min(Z+W), max(Z+W))
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+	ax.set_xlim(x_lim)
+	ax.set_ylim(y_lim)
+	ax.set_zlim(z_lim)
+	ax.quiver(X, Y, Z, U, V, W, arrow_length_ratio=0.1, pivot='tail', color='brown')
+	for i, edge in enumerate(edges):
+		ax.text(text_coordinates[i][0], text_coordinates[i][1], text_coordinates[i][2], f'{int(edge.weight)}', color='black', fontsize=10, fontweight='bold', fontname='Arial')
+	ax.scatter(X, Y, Z, color='blue')
+	ax.set_xticks(np.arange(min(X), max(X)+1, 1))
+	ax.set_yticks(np.arange(min(Y), max(Y)+1, 1))
+	ax.set_zticks(np.arange(min(Z), max(Z)+1, 1))
+	plt.savefig(file_path, format='png')
+	plt.show()
+	plt.close()

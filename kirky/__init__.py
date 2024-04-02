@@ -2,8 +2,8 @@ import numpy as np
 from .block import Edge, Frame
 from .draw import DrawEdge
 from pyx import canvas
-from .helpers import common_denominator
-from fractions import Fraction, gcd
+from .helpers import common_denominator, gcd
+from fractions import Fraction
 from .tableau import solve_kirky
 
 

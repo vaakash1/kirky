@@ -1,4 +1,5 @@
-from fractions import gcd, Fraction
+from fractions import Fraction
+from math import gcd as math_gcd
 
 
 def common_denominator(fractions):
@@ -15,3 +16,6 @@ def common_denominator(fractions):
         return common_denominator
     else:
         return denominators[0]
+
+def gcd(a, b):
+    return math_gcd(int(a), int(b))
