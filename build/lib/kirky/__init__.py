@@ -4,7 +4,7 @@ from .draw import DrawEdge
 from pyx import canvas
 from .helpers import common_denominator
 from fractions import Fraction, gcd
-from .tableau import solve_kirky, solve_kirky_scipy
+from .tableau import solve_kirky
 
 
 class Kirchhoff(object):
@@ -121,14 +121,6 @@ class Kirchhoff(object):
         vector_solution = solve_kirky(linear_system)
         return vector_solution
 
-    def solve_scipy(self, linear_system):
-        """
-        takes a linear system and returns a solution if one exists (the solution will be None
-        if a solution could not be found)
-        """
-        vector_solution = solve_kirky_scipy(linear_system)
-        return vector_solution 
-    
     def normalize_solution(self, vector_solution):
         """
         This takes the solution (composed of fractions) and multiplies through by a single constant
@@ -273,58 +265,6 @@ class Kirchhoff(object):
             print('--> solution found')
         solution = self.normalize_solution(vector_solution)
         self.set_edge_weights(solution)
-        if file:
-            c = canvas.canvas()
-            self.draw_edges(c)
-            c.writePDFfile(file)
-
-    def try_size_scipy(self, frame_shape, file=''):
-        # first we setup the block anew
-        self.frame = Frame(self.dimensions, self.num_vectors, self.steps)
-        first_frame_shape = self.get_first_frame_shape()
-        self.frame.seed_frame(first_frame_shape)
-        cross_vectors = self.get_cross_vectors()
-        for vector in cross_vectors:
-            self.frame.populate(vector)
-        # now we try to grow our block to the right size
-        if not self.frame.grow_to_size(frame_shape):
-            return None
-        print('--> generating linear system scipy')
-        linear_system = self.generate_linear_system()
-        print('     size is %s, %s' % (len(linear_system), len(linear_system[0])), 'scipy')
-        print('--> trying to find a solution scipy')
-        solution = self.solve_scipy(linear_system)
-        if solution is None:
-            print('--> solution not found scipy')
-            return None
-        else:
-            print('--> solution found scipy')
-        self.set_edge_weights(solution)
-        if file:
-            c = canvas.canvas()
-            self.draw_edges(c)
-            c.writePDFfile(file)
-
-    def find_scipy(self, file=''):
-        """
-        This is the meat of the algorithm. It takes the frame and runs the steps outlined
-        in the report. So if you've read the report this should be pretty self explanatory.
-        """
-        dimension = 0
-        while True:
-            print('--> generating linear system')
-            linear_system = self.generate_linear_system()
-            print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
-            print('--> trying to find a solution')
-            vector_solution = self.solve_scipy(linear_system)
-            if vector_solution is None:
-                print('--> solution not found')
-                print('--> doubling along dimension %s' % dimension)
-                self.frame.double(dimension)
-                dimension = (dimension + 1) % self.dimensions
-            else:
-                break
-        self.set_edge_weights(vector_solution)
         if file:
             c = canvas.canvas()
             self.draw_edges(c)

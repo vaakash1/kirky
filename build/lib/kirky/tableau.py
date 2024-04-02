@@ -1,6 +1,5 @@
 from fractions import Fraction
 from future.utils import viewitems
-from scipy.optimize import linprog
 import numpy as np
 
 
@@ -276,20 +275,3 @@ def solve_kirky(E):
     else:
         tableau.get_solution()
         return tableau.solution[:num_weights]                                                       # (j)
-
-def solve_kirky_scipy(E):
-    num_weights = len(E[0])
-    sum_condition_row = [Fraction(1)] * num_weights + [Fraction(-1)]                                # (a)
-    sum_condition_value = Fraction(1)
-    for row in E:                                                                                   # (b)
-        row.append(Fraction(0))
-    E.append(sum_condition_row)                                                                     # (c)
-    b = [Fraction(0)] * (len(E) - 1) + [sum_condition_value]                                        # (d)
-    c = [1 for i in range(num_weights + 1)]
-    result = linprog(c, A_eq=E, b_eq=b, integrality=1, method='highs')
-    status = result.status
-    if(status == 0):
-        return result.x 
-    else:
-        return None
-
