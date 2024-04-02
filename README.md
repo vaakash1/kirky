@@ -5,6 +5,7 @@ Installing kirky is as simple as cloning this repo, moving into it, and running:
 ```bash
 python setup.py install
 ```
+Note that not all versions of python work for this. I used 3.8.6
 
 # Using Kirky
 

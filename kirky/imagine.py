@@ -4,6 +4,8 @@ from sklearn.decomposition import PCA
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from mpl_toolkits.mplot3d import Axes3D
+
 
 
 class Indexer(object):

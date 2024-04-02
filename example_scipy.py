@@ -1,8 +1,23 @@
 from kirky import Kirchhoff
 import numpy as np
 from fractions import Fraction
-from kirky.imagine import draw, draw3d
+from kirky.imagine import draw
+import cProfile
+"""
+To generate the Kirchhoff Graph for the matrix
+1 0 3 8
+0 1 5 5
+"""
 
+def test():
+    matrix = np.array(
+        [[Fraction(2), Fraction(3), Fraction(3)],
+         [Fraction(1), Fraction(2), Fraction(5)]])
+    k = Kirchhoff(matrix)
+    k.find_scipy()
+    draw(k, 'drawings/kirchhoff_long_scipy.png')
+cProfile.run('test()', 'long_scipy.prof')
+'''
 """
 To generate the Kirchhoff Graph for the matrix
 1 0 2 1
@@ -65,6 +80,11 @@ matrix = np.array([[Fraction(2),Fraction(1), Fraction(1)],
 				   [Fraction(1),Fraction(2), Fraction(1)],
 				   [Fraction(1),Fraction(1), Fraction(2)]])
 k = Kirchhoff(matrix)
-k.find()
+#k.find()
 #draw(k, 'drawings/kirchhoff5.png', x=[0.5, 0, 1], y=[-0.5, 1, 0])
-draw3d(k, 'drawings/kirchhoff5_3d.png')
+
+l = Kirchhoff(matrix)
+l.find_scipy()
+draw(l, 'drawings/kirchhoff5_scipy.png', x=[0.5, 0, 1], y=[-0.5, 1, 0])
+draw(l, 'drawings/kirchhoff5_rot_scipy.png', x=[0.6, 0, 1], y=[-0.4, 1, 0])
+'''

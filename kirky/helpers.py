@@ -10,7 +10,7 @@ def common_denominator(fractions):
         common_denominator = denominators[0] * multiplier
         if len(denominators) > 2:
             for denominator in denominators[2:]:
-                divider = gcd(common_denominator, denominator)
+                divider = gcd(int(common_denominator), denominator)
                 multiplier = denominator / divider
                 common_denominator *= multiplier
         return common_denominator
