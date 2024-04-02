@@ -79,7 +79,10 @@ def build_nx_graph(adjacencies, labels):
 	return DG, edge_labels
 
 
-def draw(k, file_path, x=[1, 0], y=[0, 1]):
+def draw(k, file_path, x=None, y=None):
+	if k.dimensions == 2:
+		x = [1, 0]
+		y = [0, 1]
 	edges = list(k.frame.coordinate_vectors) + list(k.frame.cross_vectors)
 	vertices, adjacencies, labels = create_tables(edges)
 	if x is None or y is None:
@@ -91,7 +94,7 @@ def draw(k, file_path, x=[1, 0], y=[0, 1]):
 	plt.figure(figsize=(10,10))
 	x = nx.draw_networkx_edges(graph, pos=projected_vertices)
 	nodes = nx.draw_networkx_edge_labels(graph, pos=projected_vertices, font_size=12,
-										 edge_labels=edge_labels, label_pos=0.38)
+											edge_labels=edge_labels, label_pos=0.38)
 	plt.scatter(projected_vertices[:, 0], projected_vertices[:, 1], color='blue', s=100)
 	plt.savefig(file_path)
 
