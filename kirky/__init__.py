@@ -120,14 +120,6 @@ class Kirchhoff(object):
         """
         vector_solution = solve_kirky(linear_system)
         return vector_solution
-
-    def solve_scipy(self, linear_system):
-        """
-        takes a linear system and returns a solution if one exists (the solution will be None
-        if a solution could not be found)
-        """
-        vector_solution = solve_kirky_scipy(linear_system)
-        return vector_solution 
     
     def normalize_solution(self, vector_solution):
         """
