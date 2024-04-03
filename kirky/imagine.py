@@ -115,10 +115,10 @@ def draw3d(k, file_path):
 	ax.set_xlim(x_lim)
 	ax.set_ylim(y_lim)
 	ax.set_zlim(z_lim)
-	ax.quiver(X, Y, Z, U, V, W, arrow_length_ratio=0.1, pivot='tail', color='brown')
+	ax.quiver(X, Y, Z, U, V, W, arrow_length_ratio=0.1, pivot='tail', color='blue')
 	for i, edge in enumerate(edges):
 		ax.text(text_coordinates[i][0], text_coordinates[i][1], text_coordinates[i][2], f'{int(edge.weight)}', color='black', fontsize=10, fontweight='bold', fontname='Arial')
-	ax.scatter(X, Y, Z, color='blue')
+	ax.scatter(X, Y, Z, color='brown')
 	ax.set_xticks(np.arange(min(X), max(X)+1, 1))
 	ax.set_yticks(np.arange(min(Y), max(Y)+1, 1))
 	ax.set_zticks(np.arange(min(Z), max(Z)+1, 1))
