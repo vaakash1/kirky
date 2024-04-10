@@ -97,8 +97,11 @@ def draw(k, file_path, x=None, y=None):
 											edge_labels=edge_labels, label_pos=0.38)
 	plt.scatter(projected_vertices[:, 0], projected_vertices[:, 1], color='blue', s=100)
 	plt.savefig(file_path)
+	plt.close()
 
 def draw3d(k, file_path):
+	plt.clf()
+	print("The current plt figure number is", plt.gcf().number)
 	edges = list(k.frame.coordinate_vectors) + list(k.frame.cross_vectors)
 	edges = [edge for edge in edges if edge.weight != 0]
 	tail_coordinates = [[int(coord) for coord in edge.tail] for edge in edges]
@@ -122,6 +125,6 @@ def draw3d(k, file_path):
 	ax.set_xticks(np.arange(min(X), max(X)+1, 1))
 	ax.set_yticks(np.arange(min(Y), max(Y)+1, 1))
 	ax.set_zticks(np.arange(min(Z), max(Z)+1, 1))
-	plt.savefig(file_path, format='png')
+	#plt.savefig(file_path, format='png')
 	plt.show()
 	plt.close()
