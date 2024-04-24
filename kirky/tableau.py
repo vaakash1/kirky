@@ -1,6 +1,7 @@
 from fractions import Fraction
 from future.utils import viewitems
 import numpy as np
+from scipy.optimize import linprog
 
 
 class Tableau(object):
@@ -275,3 +276,30 @@ def solve_kirky(E):
     else:
         tableau.get_solution()
         return tableau.solution[:num_weights]                                                       # (j)
+    
+def solve_kirky_scipy(E, random_objective_vector = None):
+    num_weights = len(E[0])
+    sum_condition_row = [1] * num_weights + [-1]                                # (a)
+    sum_condition_value = 1
+    for row in E:                                                                                   # (b)
+        row.append(0)
+    E.append(sum_condition_row)                                                                     # (c)
+    b = [0] * (len(E) - 1) + [sum_condition_value]                                        # (d)
+    if(random_objective_vector == False):
+        c = [1 for i in range(num_weights + 1)]
+    else:
+        c = get_random_objective_vector(num_weights + 1)
+    result = linprog(c, A_eq=E, b_eq=b, integrality=1)
+    status = result.status
+    if(status == 0 ):
+        intSolution = np.array([round(x) for x in result.x])
+        toCheck = intSolution * E
+        if(np.sum(toCheck[:-1]) == 0):
+            return intSolution
+    return None
+
+def get_random_objective_vector(num_dims):
+    """
+    Generates a random objective vector of length num_weights.
+    """
+    return [np.random() - 0.5 for _ in range(num_dims)]

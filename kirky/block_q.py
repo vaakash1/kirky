@@ -106,7 +106,7 @@ class Frame(object):
         """
         for dimension in range(self.dimensions):
             coordinate_vector = [Fraction(0) for _ in range(self.dimensions)]                           # (a)
-            coordinate_vector[dimension] = Fraction(1)
+            coordinate_vector[dimension] = Fraction(self.q)
             for position in self.vertices:                                                              # (b)
                 head_position = tuple([position[i] + coordinate_vector[i]
                                        for i in range(self.dimensions)])                                # (c)
@@ -144,7 +144,7 @@ class Frame(object):
             old_positions = [position for position in self.vertices]
             new_positions = []
             num_layers = self.steps[dimension]
-            distance = Fraction(1, num_layers)                                                          # (d)
+            distance = Fraction(self.q)                                                          # (d)
             for position in old_positions:                                                              # (e)
                 for i in range(num_layers):
                     new_position = [e for e in position]
@@ -212,7 +212,7 @@ class Frame(object):
         self.create_hyper_cube()                                                                        # (a)
         for i in range(self.dimensions):                                                                # (b)
             for j in range(int((shape[i] - 1) * self.steps[i])):
-                self.copy_and_add(self.coordinate_vectors, i, Fraction(1, self.steps[i]))
+                self.copy_and_add(self.coordinate_vectors, i, Fraction(1))
         self.shape = shape                                                                              # (c)
 
     def populate(self, cross_vector):
@@ -253,8 +253,8 @@ class Frame(object):
                 the smallest distance between vertices specified by steps[dimension]
         """
         for i in range(int(self.shape[dimension] * self.steps[dimension])):                             # (a)
-            self.copy_and_add(self.cross_vectors, dimension, Fraction(1, self.steps[dimension]))
-            self.copy_and_add(self.coordinate_vectors, dimension, Fraction(1, self.steps[dimension]))
+            self.copy_and_add(self.cross_vectors, dimension, Fraction(1))
+            self.copy_and_add(self.coordinate_vectors, dimension, Fraction(1))
         self.shape[dimension] += self.shape[dimension]
 
     def grow_to_size(self, block_shape):
@@ -265,8 +265,8 @@ class Frame(object):
             return False
         for i in range(len(deltas)):
             for j in range(int(deltas[i] * self.steps[i])):
-                self.copy_and_add(self.cross_vectors, i, Fraction(1, self.steps[i]))
-                self.copy_and_add(self.coordinate_vectors, i, Fraction(1, self.steps[i]))
+                self.copy_and_add(self.cross_vectors, i, Fraction(1))
+                self.copy_and_add(self.coordinate_vectors, i, Fraction(1))
         self.shape = block_shape
         return True
 

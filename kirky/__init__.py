@@ -1,15 +1,16 @@
 import numpy as np
-from .block import Edge, Frame
+#from .block import Edge, Frame
+from .block_q import Edge, Frame
 from .draw import DrawEdge
 from pyx import canvas
 from .helpers import common_denominator, gcd
 from fractions import Fraction
-from .tableau import solve_kirky
+from .tableau import solve_kirky, solve_kirky_scipy
 
 
 class Kirchhoff(object):
 
-    def __init__(self, matrix):
+    def __init__(self, matrix, q=1):
         """
         Input:
             matrix - of the matrix we are wanting to generate a Kirchhoff graph for
@@ -33,11 +34,12 @@ class Kirchhoff(object):
             (e) we create a frame of the appropriate shape filled only with coordinate vectors
             (f) the next three lines fill the frame with all the possible cross vectors
         """
+        self.q = q
         self.matrix = matrix
         self.dimensions = matrix.shape[0]                                                               # (a)
         self.num_vectors = self.dimensions + matrix.shape[1]                                            # (b)
         self.steps = self.get_steps()                                                                   # (c)
-        self.frame = Frame(self.dimensions, self.num_vectors, self.steps)
+        self.frame = Frame(self.dimensions, self.num_vectors, self.steps, q=q)
         first_frame_shape = self.get_first_frame_shape()                                                # (d)
         self.frame.seed_frame(first_frame_shape)                                                        # (e)
         cross_vectors = self.get_cross_vectors()                                                        # (f)
@@ -64,7 +66,7 @@ class Kirchhoff(object):
         """
         shape = []
         for row in self.matrix:
-            max_element = max([abs(element) for element in row] + [Fraction(1)])
+            max_element = max([abs(element) for element in row] + [Fraction(self.q)])
             shape.append(max_element)
         return shape
 
@@ -112,6 +114,32 @@ class Kirchhoff(object):
                     row[out_edge.pin] = Fraction(-1)
                 rows.append(row)
         return rows
+    
+    def generate_linear_system_no_frac(self):
+        """
+        Refer to the report, but this generates the rows of our constraint matrix E which
+        if solved will give us the weightings of the frame vectors which make the result
+        Kirchhoff
+        """
+        rows = []
+        for position in self.frame.vertices:
+            vertex = self.frame.vertices[position]
+            for i in range(self.matrix.shape[1]):
+                row = [0 for _ in range(len(self.frame.coordinate_vectors) + len(self.frame.cross_vectors))]
+                for j in range(self.dimensions):
+                    multiplier = self.matrix[j, i]
+                    in_edge, out_edge = vertex.cut[j]
+                    if in_edge:
+                        row[in_edge.pin] = -1 * multiplier
+                    if out_edge:
+                        row[out_edge.pin] = 1 * multiplier
+                in_edge, out_edge = vertex.cut[self.dimensions + i]
+                if in_edge:
+                    row[in_edge.pin] = 1
+                if out_edge:
+                    row[out_edge.pin] = -1
+                rows.append(row)
+        return rows
 
     def solve(self, linear_system):
         """
@@ -121,6 +149,15 @@ class Kirchhoff(object):
         vector_solution = solve_kirky(linear_system)
         return vector_solution
     
+    
+    def solve_scipy(self, linear_system, random_objective_vector=False):
+        """
+        takes a linear system and returns a solution if one exists (the solution will be None
+        if a solution could not be found)
+        """
+        vector_solution = solve_kirky_scipy(linear_system, random_objective_vector=random_objective_vector)
+        return vector_solution 
+
     def normalize_solution(self, vector_solution):
         """
         This takes the solution (composed of fractions) and multiplies through by a single constant
@@ -265,6 +302,59 @@ class Kirchhoff(object):
             print('--> solution found')
         solution = self.normalize_solution(vector_solution)
         self.set_edge_weights(solution)
+        if file:
+            c = canvas.canvas()
+            self.draw_edges(c)
+            c.writePDFfile(file)
+    def try_size_scipy(self, frame_shape, file=''):
+        # first we setup the block anew
+        self.frame = Frame(self.dimensions, self.num_vectors, self.steps)
+        first_frame_shape = self.get_first_frame_shape()
+        self.frame.seed_frame(first_frame_shape)
+        cross_vectors = self.get_cross_vectors()
+        for vector in cross_vectors:
+            self.frame.populate(vector)
+        # now we try to grow our block to the right size
+        if not self.frame.grow_to_size(frame_shape):
+            return None
+        print('--> generating linear system scipy')
+        linear_system = self.generate_linear_system()
+        print('     size is %s, %s' % (len(linear_system), len(linear_system[0])), 'scipy')
+        print('--> trying to find a solution scipy')
+        solution = self.solve_scipy(linear_system)
+        if solution is None:
+            print('--> solution not found scipy')
+            return None
+        else:
+            print('--> solution found scipy')
+        self.set_edge_weights(solution)
+        if file:
+            c = canvas.canvas()
+            self.draw_edges(c)
+            c.writePDFfile(file)
+
+    def find_scipy(self, file=''):
+        """
+        This is the meat of the algorithm. It takes the frame and runs the steps outlined
+        in the report. So if you've read the report this should be pretty self explanatory.
+        """
+        dimension = 0
+        while True:
+            print('--> generating linear system')
+            linear_system = self.generate_linear_system_no_frac()
+            print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
+            print('--> trying to find a solution')
+            vector_solution = self.solve_scipy(linear_system)
+            if vector_solution is None:
+                print('--> solution not found')
+                print('--> doubling along dimension %s' % dimension)
+                self.frame.double(dimension)
+                dimension = (dimension + 1) % self.dimensions
+            else:
+                break
+        print('--> solution found')
+
+        self.set_edge_weights(vector_solution)
         if file:
             c = canvas.canvas()
             self.draw_edges(c)
