@@ -1,3 +1,4 @@
+import os
 import numpy as np
 #from .block import Edge, Frame
 from .block_q import Edge, Frame
@@ -6,7 +7,7 @@ from pyx import canvas
 from .helpers import common_denominator, gcd
 from fractions import Fraction
 from .tableau import solve_kirky, solve_kirky_scipy
-
+from .imagine import draw
 
 class Kirchhoff(object):
 
@@ -45,7 +46,13 @@ class Kirchhoff(object):
         cross_vectors = self.get_cross_vectors()                                                        # (f)
         for vector in cross_vectors:
             self.frame.populate(vector)
-
+    def copy(self):
+        """
+        This method returns a copy of the current object
+        """
+        k = Kirchhoff(self.matrix, q=self.q)
+        k.frame = self.frame.copy()
+        return k
     def get_steps(self):
         """
         For each dimension we get the number of steps to take in moving along vertices from 0
@@ -333,7 +340,7 @@ class Kirchhoff(object):
             self.draw_edges(c)
             c.writePDFfile(file)
 
-    def find_scipy(self, file=''):
+    def find_scipy(self, file='', random_objective_vector=False):
         """
         This is the meat of the algorithm. It takes the frame and runs the steps outlined
         in the report. So if you've read the report this should be pretty self explanatory.
@@ -344,18 +351,100 @@ class Kirchhoff(object):
             linear_system = self.generate_linear_system_no_frac()
             print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
             print('--> trying to find a solution')
-            vector_solution = self.solve_scipy(linear_system)
+            vector_solution = self.solve_scipy(linear_system, random_objective_vector=random_objective_vector)
             if vector_solution is None:
                 print('--> solution not found')
                 print('--> doubling along dimension %s' % dimension)
                 self.frame.double(dimension)
                 dimension = (dimension + 1) % self.dimensions
             else:
+                print('--> solution found')
                 break
-        print('--> solution found')
 
         self.set_edge_weights(vector_solution)
         if file:
             c = canvas.canvas()
             self.draw_edges(c)
             c.writePDFfile(file)
+        return vector_solution
+    # def draw_solutions_scipy(self, file_path, folder_name):
+    #     """
+    #     This function attempts to generate multiple Kirchhoff graphs for the given matrix.
+    #     """
+    #     index = 0
+    #     path = file_path + '/' + folder_name
+    #     os.makedirs(file_path + '/' + folder_name, exist_ok=True)
+    #     for(i) in range(100):
+    #         #continue after 15 seconds if the following operation does not complete
+            
+    #         solution = self.find_scipy(random_objective_vector=True)
+            
+    #         if solution is not None:
+    #             self.set_edge_weights(solution)
+    #             draw(self, path + '/solution_%s.png' % (index + 1))   
+    #             index += 1
+    def draw_solutions_scipy(self, file_path, folder_name):
+        """
+        This function attempts to generate multiple Kirchhoff graphs for the given matrix.
+        """
+        solutions = []
+        index = 0
+        path = file_path + '/' + folder_name
+        lastSolutionFound = 0
+        os.makedirs(file_path + '/' + folder_name, exist_ok=True)
+        while lastSolutionFound < 5:
+            solution = list(self.find_scipy(random_objective_vector=True))
+            
+            if solution in solutions:
+                print(solution)
+                print(solutions)
+                print("--> already found this solution")
+                lastSolutionFound += 1
+            else:
+                print("--> found a new solution")
+                solutions.append(solution)
+                print(solution)
+                self.set_edge_weights(solution)
+                draw(self, path + '/solution_%s.png' % (index + 1))   
+                lastSolutionFound = 0
+                index += 1
+        print('--> found %s solutions' % len(solutions))
+      
+
+    # def draw_solutions_scipy(self, file_path, folder_name):
+    #     """
+    #     This function attempts to generate multiple Kirchhoff graphs for the Kirchhoff given matrix.
+    #     """
+    #     solutions = []
+    #     dimension = 0
+    #     lastSolutionFound = 0
+    #     index = 0
+    #     path = file_path + '/' + folder_name
+    #     os.makedirs(file_path + '/' + folder_name, exist_ok=True)
+    #     while True:
+    #         print('--> generating linear system')
+    #         linear_system = self.generate_linear_system_no_frac()
+    #         print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
+    #         print('--> trying to find a solution')
+    #         vector_solution = self.solve_scipy(linear_system)
+    #         if vector_solution is None:
+    #             print('--> solution not found')
+    #             print('--> doubling along dimension %s' % dimension)
+    #             self.frame.double(dimension)
+    #             dimension = (dimension + 1) % self.dimensions
+    #         else:
+    #             while lastSolutionFound < 4:
+    #                 print('--> trying to find a solution')
+    #                 vector_solution = self.solve_scipy(linear_system, random_objective_vector=True)
+    #                 if vector_solution is not None and vector_solution not in solutions:
+    #                     print(vector_solution)
+    #                     solutions.append(vector_solution)
+    #                     self.set_edge_weights(vector_solution)
+    #                     draw(self, path + '/solution_%s.png' % (index + 1))   
+    #                     index += 1     
+    #                     lastSolutionFound = 0
+    #                 else:
+    #                     lastSolutionFound += 1
+    #             break
+    #     print('--> found %s solutions' % len(solutions))
+    #     return solutions

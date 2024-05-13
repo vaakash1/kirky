@@ -11,8 +11,7 @@ def run():
 	"""
 	matrix = np.array([[2,1], [1,2]])
 	k = Kirchhoff(matrix)
-	k.find_scipy()
-	draw(k, 'drawings/kirchhoff1_scipy.png')
+	k.draw_solutions_scipy('drawings2', 'kirchhoff0')
 
 	"""
 	To generate the Kirchhoff Graph for the matrix
@@ -21,8 +20,7 @@ def run():
 	"""
 	matrix = np.array([[-1,1,1],[1,2,1]])
 	k = Kirchhoff(matrix)
-	k.find_scipy()
-	draw(k, 'drawings/kirchhoff2_scipy.png')
+	k.draw_solutions_scipy('drawings2', 'kirchhoff1')
 
 	"""
 	To generate the Kirchhoff Graph for the matrix
@@ -31,8 +29,7 @@ def run():
 	"""
 	matrix = np.array([[-1,1, 3],[1,2, -1]])
 	k = Kirchhoff(matrix)
-	k.find_scipy()
-	draw(k, 'drawings/kirchhoff3_scipy.png')
+	k.draw_solutions_scipy('drawings2', 'kirchhoff2')
 
 	"""
 	To generate the Kirchhoff Graph for the matrix
@@ -41,8 +38,7 @@ def run():
 	"""
 	matrix = np.array([[-3,1], [1,1]])
 	k = Kirchhoff(matrix, q=2)
-	k.find_scipy()
-	draw(k, 'drawings/kirchhoff4_scipy.png')
+	k.draw_solutions_scipy('drawings2', 'kirchhoff3')
 
 
 	"""
@@ -55,7 +51,5 @@ def run():
 					[1,2, 1],
 					[1,1, 2]])
 	k = Kirchhoff(matrix)
-	k.find_scipy()
-	draw(k, 'drawings/kirchhoff5_scipy.png')
-	#draw3d(k, 'drawings/kirchhoff5_3d_scipy.png')
+	k.draw_solutions_scipy('drawings2', 'kirchhoff4')
 run()

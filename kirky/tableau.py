@@ -277,7 +277,7 @@ def solve_kirky(E):
         tableau.get_solution()
         return tableau.solution[:num_weights]                                                       # (j)
     
-def solve_kirky_scipy(E, random_objective_vector = None):
+def solve_kirky_scipy(E, random_objective_vector = False):
     num_weights = len(E[0])
     sum_condition_row = [1] * num_weights + [-1]                                # (a)
     sum_condition_value = 1
@@ -289,7 +289,9 @@ def solve_kirky_scipy(E, random_objective_vector = None):
         c = [1 for i in range(num_weights + 1)]
     else:
         c = get_random_objective_vector(num_weights + 1)
+    print("linprog started")
     result = linprog(c, A_eq=E, b_eq=b, integrality=1)
+    print("linprog ended")
     status = result.status
     if(status == 0 ):
         intSolution = np.array([round(x) for x in result.x])
@@ -302,4 +304,4 @@ def get_random_objective_vector(num_dims):
     """
     Generates a random objective vector of length num_weights.
     """
-    return [np.random() - 0.5 for _ in range(num_dims)]
+    return [num_dims * np.random.random() for _ in range(num_dims)]

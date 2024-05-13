@@ -44,6 +44,18 @@ class Frame(object):
         self.vertices = {}
         self.current_pin = 0
         self.q = q
+    
+    def copy(self):
+        """
+        This method creates a new frame with the same properties as the current frame.
+        """
+        new_frame = Frame(self.dimensions, self.num_vectors, self.steps, self.q)
+        new_frame.cross_vectors = self.cross_vectors.copy()
+        new_frame.coordinate_vectors = self.coordinate_vectors.copy()
+        new_frame.vertices = self.vertices.copy()
+        new_frame.current_pin = self.current_pin
+        new_frame.shape = self.shape.copy()
+        return new_frame
 
     def update_vertices(self, edge):
         """
