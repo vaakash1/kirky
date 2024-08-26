@@ -1,7 +1,7 @@
 import numpy as np
 from .block_q import Frame
 from scipy.optimize import linprog
-from .imagine import draw_graph
+from .imagine import draw_graph, draw_graph_slider
 """
 The Kirchhoff class represents a Kirchhoff matrix and provides methods for matrix manipulation.
 
@@ -24,7 +24,7 @@ class Kirchhoff(object):
     A class representing Kirchhoff matrices and their operations.
     """
 
-    def __init__(self, matrix, q=1, search_depth = None):
+    def __init__(self, matrix, q=1):
         """
         Initializes a Kirchhoff object.
 
@@ -36,7 +36,7 @@ class Kirchhoff(object):
         self.dimensions = matrix.shape[0]
         self.num_vectors = self.dimensions + matrix.shape[1]
         self.parse_matrix(matrix)
-        self.frame = Frame(self.matrix, q=q, search_depth=search_depth)
+        self.frame = Frame(self.matrix, q=q)
 
     def parse_matrix(self, matrix):
         """
@@ -131,6 +131,8 @@ class Kirchhoff(object):
         print(np.shape(A))
         solution = self.solve(A)
         if(solution is None):
+            self.frame.expand()
+            self.draw_solution(x, y)
             print("No solution found")
             return
         
@@ -139,4 +141,4 @@ class Kirchhoff(object):
             edge.weight = solution[edge.pin]
         print(solution)
         # draw the graph
-        draw_graph(self, x, y)
+        draw_graph_slider(self, x, y)
