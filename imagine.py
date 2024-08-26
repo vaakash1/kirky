@@ -1,10 +1,62 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patheffects as pe
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Button,Slider
 
 def draw_graph(k, x, y):    
 
+    # transformation matrix for projecting from n-dimensional space to 2D
+    transformation_matrix = np.array([x, y])
+        
+    # constants
+    LABEL_POSITION = 0.618
+    SPACE_OFFSET = 0.02
+    TEXT_OFFSET = 0.025
+    HEAD_SIZE = 5
+
+    
+    vectors = []
+    vector_text = []
+    vector_text_positions = []
+    
+    for edge in k.frame.edges:
+        if edge.weight != 0:
+            # project coordinates
+            head_vertex = np.dot(transformation_matrix, edge.head.position)
+            tail_vertex = np.dot(transformation_matrix, edge.tail.position)
+            
+            # compute coordinates
+            vector = head_vertex - tail_vertex
+            normalized = vector / np.linalg.norm(vector)
+            tail_position = tail_vertex + SPACE_OFFSET * normalized
+            components = vector - 2 * SPACE_OFFSET * normalized
+            text_position = np.subtract(tail_vertex + vector * LABEL_POSITION, TEXT_OFFSET)
+            
+            # store the information
+            vectors.append((tail_position[0], tail_position[1], components[0], components[1]))
+            vector_text.append(f'{edge.weight}, {edge.id + 1}')
+            vector_text_positions.append((text_position[0], text_position[1]))
+    
+    # retrieve the vertices
+    vertices = [np.dot(transformation_matrix, vertex.position) for vertex in k.frame.vertices.values() if vertex.is_connected()]
+    print(vertices)
+    verticesX, verticesY = zip(*vertices)
+
+
+    
+    # draw everything
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.quiver(*zip(*vectors), angles='xy', scale_units='xy', scale=1, width=0.003, color='black', headwidth = HEAD_SIZE, headlength = HEAD_SIZE, headaxislength = HEAD_SIZE)
+    ax.scatter(verticesX, verticesY, color='blue')
+    ax.set_xticks(np.arange(min(verticesX), max(verticesX) + 1, 1))
+    ax.set_yticks(np.arange(min(verticesY), max(verticesY) + 1, 1))
+    for i, text in enumerate(vector_text):
+        ax.text(vector_text_positions[i][0], vector_text_positions[i][1], text, color='black', fontsize=8, fontweight='bold', fontname='Arial', path_effects=[pe.withStroke(linewidth=6, foreground="white")])
+    
+    plt.show()
+def draw_graph_slider(k, x, y):
+    
     # transformation matrix for projecting from n-dimensional space to 2D
     transformation_matrix = np.array([x, y])
         
@@ -34,7 +86,7 @@ def draw_graph(k, x, y):
             
             # store the information
             vectors.append((tail_position[0], tail_position[1], components[0], components[1]))
-            vector_text.append(f'{edge.weight}')
+            vector_text.append(f'{edge.weight}, {edge.id + 1}')
             vector_text_positions.append((text_position[0], text_position[1]))
     
     # retrieve the vertices
@@ -49,13 +101,77 @@ def draw_graph(k, x, y):
     ax = fig.add_subplot(111)
     ax.quiver(*zip(*vectors), angles='xy', scale_units='xy', scale=1, width=0.003, color='black', headwidth = HEAD_SIZE, headlength = HEAD_SIZE, headaxislength = HEAD_SIZE)
     ax.scatter(verticesX, verticesY, color='blue')
-    ax.set_xticks(np.arange(min(verticesX), max(verticesX) + 1, 1))
+    ax.set_xticks(np.arange(np.floor(min(verticesX)), np.ceil(max(verticesX)) + 1, 1))
     ax.set_yticks(np.arange(min(verticesY), max(verticesY) + 1, 1))
     for i, text in enumerate(vector_text):
         ax.text(vector_text_positions[i][0], vector_text_positions[i][1], text, color='black', fontsize=8, fontweight='bold', fontname='Arial', path_effects=[pe.withStroke(linewidth=6, foreground="white")])
-    
+    num_dims = k.dimensions
+    num_sliders = num_dims - 2
+    initial_angles = np.linspace(0, np.pi, num_dims)
+    initial_angles = initial_angles[1 : ]
+    # make a list of sliders, each corresponding to a dimension
+    sliders = []
+    for i in range(num_sliders):
+        axslider = fig.add_axes([0.25, 0.1 + 0.03 * i, 0.65, 0.03])
+        slider = Slider(
+            ax=axslider,
+            label=f'Angle {i + 1}',
+            valmin=0,
+            valmax=2 * np.pi,
+            valinit=initial_angles[i]
+        )
+        sliders.append(slider)
+    # calculate how much to adjust the subplot to make room for the sliders
+    fig.subplots_adjust(bottom=0.25 + 0.03 * num_sliders)
+    def update(val):
+        angles = [0, np.pi / 2] + [slider.val for slider in sliders]
+        transformation_matrix = np.array([[np.cos(angle) for angle in angles], [np.sin(angle) for angle in angles]])
+        print(np.round(transformation_matrix, decimals=2))
+        ax.clear()
+        vectors = []
+        vector_text = []
+        vector_text_positions = []
+        for edge in k.frame.edges:
+            if edge.weight != 0:
+                # project coordinates
+                head_vertex = np.dot(transformation_matrix, edge.head.position)
+                tail_vertex = np.dot(transformation_matrix, edge.tail.position)
+                
+                # compute coordinates
+                vector = head_vertex - tail_vertex
+                normalized = vector / np.linalg.norm(vector)
+                tail_position = tail_vertex + SPACE_OFFSET * normalized
+                components = vector - 2 * SPACE_OFFSET * normalized
+                text_position = np.subtract(tail_vertex + vector * LABEL_POSITION, TEXT_OFFSET)
+                
+                # store the information
+                vectors.append((tail_position[0], tail_position[1], components[0], components[1]))
+                vector_text.append(f'{edge.weight}, {edge.id + 1}')
+                vector_text_positions.append((text_position[0], text_position[1]))
+        # retrieve the vertices
+        vertices = [np.dot(transformation_matrix, vertex.position) for vertex in k.frame.vertices.values() if vertex.is_connected()]
+        verticesX, verticesY = zip(*vertices)
+        ax.quiver(*zip(*vectors), angles='xy', scale_units='xy', scale=1, width=0.003, color='black', headwidth = HEAD_SIZE, headlength = HEAD_SIZE, headaxislength = HEAD_SIZE)
+        ax.scatter(verticesX, verticesY, color='blue')
+        ax.set_xticks(np.arange(np.floor(min(verticesX)), np.ceil(max(verticesX)) + 1, 1))
+        ax.set_yticks(np.arange(min(verticesY), max(verticesY) + 1, 1))
+        for i, text in enumerate(vector_text):
+            ax.text(vector_text_positions[i][0], vector_text_positions[i][1], text, color='black', fontsize=8, fontweight='bold', fontname='Arial', path_effects=[pe.withStroke(linewidth=6, foreground="white")])
+        plt.show()
+    for slider in sliders:
+        slider.on_changed(update)
     plt.show()
+    # Make a horizontal slider to control the frequency.
+    # axfreq = fig.add_axes([0.25, 0.1, 0.65, 0.03])
+    # freq_slider = Slider(
+    #     ax=axfreq,
+    #     label='Frequency [Hz]',
+    #     valmin=0.1,
+    #     valmax=30,
+    #     valinit=0
+    # )
 
+    
 def draw3d(k):
 	plt.clf()
 	print("The current plt figure number is", plt.gcf().number)
