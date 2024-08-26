@@ -1,450 +1,144 @@
-import os
 import numpy as np
-#from .block import Edge, Frame
-from .block_q import Edge, Frame
-from .draw import DrawEdge
-from pyx import canvas
-from .helpers import common_denominator, gcd
-from fractions import Fraction
-from .tableau import solve_kirky, solve_kirky_scipy
-from .imagine import draw
+from .block_q import Frame
+from scipy.optimize import linprog
+from .imagine import draw_graph, draw_graph_slider
+"""
+The Kirchhoff class represents a Kirchhoff matrix and provides methods for matrix manipulation.
+
+Attributes:
+    q (int): The value of q used for matrix augmentation.
+    dimensions (int): The number of dimensions in the matrix.
+    num_vectors (int): The total number of vectors in the matrix.
+    matrix (ndarray): The Kirchhoff matrix.
+
+Methods:
+    __init__(self, matrix, q=1): Initializes a Kirchhoff object with the given matrix and q value.
+    parse_matrix(self, matrix): Parses the given matrix and performs matrix operations.
+    augment_identity(self): Augments the matrix with an identity matrix.
+    reduce_matrix(self): Reduces the matrix by dividing all elements by their greatest common divisor.
+"""
+import numpy as np
 
 class Kirchhoff(object):
+    """
+    A class representing Kirchhoff matrices and their operations.
+    """
 
     def __init__(self, matrix, q=1):
         """
-        Input:
-            matrix - of the matrix we are wanting to generate a Kirchhoff graph for
-                    we should have put it in [IB] form and the matrix input should be
-                    the B part with elements that are python Fractions
+        Initializes a Kirchhoff object.
 
-        During initiation of the class we generate the frame that will be used during
-        the course of the algorithm.
-
-        NOTES:
-            (a) we determine the number of dimensions our frame will have
-            (b) the number of vectors we will have is equal to the number of cross vectors
-                (given by the dimensions of the frame) plus the number of cross vectors
-                (given by the number of columns in our matrix)
-            (c) we determine how closely the vertices in the frame will be to each other
-                along each dimension. This gets saved in steps as the number of vertices
-                in [0, 1) along that dimension. So if we have a distance of 1/2
-                between vertices along dimension 0 then step[0] = 2.
-            (d) we get the shape of the smallest possible frame that contains all the vectors
-                we have
-            (e) we create a frame of the appropriate shape filled only with coordinate vectors
-            (f) the next three lines fill the frame with all the possible cross vectors
+        Parameters:
+        - matrix (numpy.ndarray): The input matrix.
+        - q (int): The value of q (default is 1).
         """
         self.q = q
-        self.matrix = matrix
-        self.dimensions = matrix.shape[0]                                                               # (a)
-        self.num_vectors = self.dimensions + matrix.shape[1]                                            # (b)
-        self.steps = self.get_steps()                                                                   # (c)
-        self.frame = Frame(self.dimensions, self.num_vectors, self.steps, q=q)
-        first_frame_shape = self.get_first_frame_shape()                                                # (d)
-        self.frame.seed_frame(first_frame_shape)                                                        # (e)
-        cross_vectors = self.get_cross_vectors()                                                        # (f)
-        for vector in cross_vectors:
-            self.frame.populate(vector)
-    def copy(self):
-        """
-        This method returns a copy of the current object
-        """
-        k = Kirchhoff(self.matrix, q=self.q)
-        k.frame = self.frame.copy()
-        return k
-    def get_steps(self):
-        """
-        For each dimension we get the number of steps to take in moving along vertices from 0
-        to 1 along that dimension. If along that dimension our vectors have components 1/2 1
-        2/3 0, then we can see that the smallest distance we can move in that dimension by using
-        these vectors is 1/6. Therefore we will have 6 steps between 0 and 1 to get all the possible
-        vertices along this dimension. We essentially do this for each dimension and output the
-        results in a list.
-        """
-        steps = []
-        for row in self.matrix:
-            steps.append(int(common_denominator([fraction for fraction in row])))
-        return steps
+        self.dimensions = matrix.shape[0]
+        self.num_vectors = self.dimensions + matrix.shape[1]
+        self.parse_matrix(matrix)
+        self.frame = Frame(self.matrix, q=q)
 
-    def get_first_frame_shape(self):
+    def parse_matrix(self, matrix):
         """
-        This returns the smallest shape that still gives us at least one of each vector.
-        """
-        shape = []
-        for row in self.matrix:
-            max_element = max([abs(element) for element in row] + [Fraction(self.q)])
-            shape.append(max_element)
-        return shape
+        Parses the input matrix and performs necessary operations.
 
-    def get_cross_vectors(self):
+        Parameters:
+        - matrix (numpy.ndarray): The input matrix.
         """
-        This creates an edge object for each cross vector and returns them in a list.
+        self.matrix = np.array(matrix, dtype=np.int16)
+        self.augment_identity()
+        self.reduce_matrix()
 
-        NOTES:
-            (a) each column in our matrix is a cross vector
-            (b) the id's are basically the vector label
+    def augment_identity(self):
         """
-        edges = []
-        trans = np.transpose(self.matrix)                                                               # (a)
-        id = self.dimensions                                                                            # (b)
-        for row in trans:
-            head = [element for element in row]
-            tail = [Fraction(0) for _ in range(self.dimensions)]
-            edge = Edge(tail, head, id)
-            edges.append(edge)
-            id += 1
-        return edges
+        Augments the input matrix with an identity matrix.
 
+        The augmented matrix has dimensions (dimensions x num_vectors).
+        """
+        new_matrix = np.zeros((self.dimensions, self.num_vectors))
+        for (i, row) in enumerate(self.matrix):
+            new_matrix[i] = np.append(np.zeros(self.dimensions), row)
+            new_matrix[i][i] = self.q
+        self.matrix = new_matrix
+
+    def reduce_matrix(self):
+        """
+        Reduces the matrix by dividing all elements by their greatest common divisor.
+        """
+        b = self.matrix.flatten().astype(np.int16)
+        gcd = np.gcd.reduce(b)
+        self.matrix = self.matrix / gcd
+    
     def generate_linear_system(self):
-        """
-        Refer to the report, but this generates the rows of our constraint matrix E which
-        if solved will give us the weightings of the frame vectors which make the result
-        Kirchhoff
-        """
-        rows = []
+        # generate null matrix
+        null_matrix = np.copy(self.matrix)
+        null_matrix = np.vstack([null_matrix, np.zeros((self.num_vectors - self.dimensions, self.num_vectors))])
+        for i in range(self.num_vectors):
+            null_matrix[i][i] = -self.q
+        null_matrix = np.delete(null_matrix, np.s_[:self.dimensions], 1)
+        null_matrix = np.transpose(null_matrix)                
+        system = []
+        for (i, edge) in enumerate(self.frame.edges):
+            edge.pin = i
+        num_edges = len(self.frame.edges)
         for position in self.frame.vertices:
             vertex = self.frame.vertices[position]
-            for i in range(self.matrix.shape[1]):
-                row = [Fraction(0) for _ in range(len(self.frame.coordinate_vectors) + len(self.frame.cross_vectors))]
-                for j in range(self.dimensions):
-                    multiplier = self.matrix[j, i]
-                    in_edge, out_edge = vertex.cut[j]
-                    if in_edge:
-                        row[in_edge.pin] = -1 * multiplier
-                    if out_edge:
-                        row[out_edge.pin] = 1 * multiplier
-                in_edge, out_edge = vertex.cut[self.dimensions + i]
-                if in_edge:
-                    row[in_edge.pin] = Fraction(1)
-                if out_edge:
-                    row[out_edge.pin] = Fraction(-1)
-                rows.append(row)
-        return rows
-    
-    def generate_linear_system_no_frac(self):
-        """
-        Refer to the report, but this generates the rows of our constraint matrix E which
-        if solved will give us the weightings of the frame vectors which make the result
-        Kirchhoff
-        """
-        rows = []
-        for position in self.frame.vertices:
-            vertex = self.frame.vertices[position]
-            for i in range(self.matrix.shape[1]):
-                row = [0 for _ in range(len(self.frame.coordinate_vectors) + len(self.frame.cross_vectors))]
-                for j in range(self.dimensions):
-                    multiplier = self.matrix[j, i]
-                    in_edge, out_edge = vertex.cut[j]
-                    if in_edge:
-                        row[in_edge.pin] = -1 * multiplier
-                    if out_edge:
-                        row[out_edge.pin] = 1 * multiplier
-                in_edge, out_edge = vertex.cut[self.dimensions + i]
-                if in_edge:
-                    row[in_edge.pin] = 1
-                if out_edge:
-                    row[out_edge.pin] = -1
-                rows.append(row)
-        return rows
+            for null_row in null_matrix:
+                system_row = [0 for _ in range(num_edges)]
+                for edge in vertex.incoming:
+                    if edge != None:
+                        system_row[edge.pin] -= null_row[edge.id]
+                for edge in vertex.outgoing:
+                    if edge != None:
+                        system_row[edge.pin] += null_row[edge.id]
+                system.append(system_row)
+        return system
 
-    def solve(self, linear_system):
+                        
+    def get_random_objective_vector(self, num_dims):
         """
-        takes a linear system and returns a solution if one exists (the solution will be None
-        if a solution could not be found)
+        Generates a random objective vector of length num_weights.
         """
-        vector_solution = solve_kirky(linear_system)
-        return vector_solution
-    
-    
-    def solve_scipy(self, linear_system, random_objective_vector=False):
-        """
-        takes a linear system and returns a solution if one exists (the solution will be None
-        if a solution could not be found)
-        """
-        vector_solution = solve_kirky_scipy(linear_system, random_objective_vector=random_objective_vector)
-        return vector_solution 
+        return [num_dims * np.random.random() for _ in range(num_dims)]
 
-    def normalize_solution(self, vector_solution):
-        """
-        This takes the solution (composed of fractions) and multiplies through by a single constant
-        (which is found during the process of this method) to generate a fully integer solution.
-        """
-        denominators = {weight.denominator for weight in vector_solution}
-        while len(denominators) > 1:
-            l = list(denominators)
-            first, second = l[:2]
-            new_denominator = (first / gcd(first, second)) * second
-            denominators.remove(first)
-            denominators.remove(second)
-            denominators.add(new_denominator)
-        common_denominator = list(denominators)[0]
-        normalized_solution = [weight * common_denominator for weight in vector_solution]
-        return normalized_solution
-
-    def set_edge_weights(self, solution):
-        """
-        This takes a solution and sets the corresponding edge weights in the frame. The importnat thing
-        to note here is that the solution is sorted by the pin numbers of the edges.
-        """
-        edges = [edge for edge in self.frame.coordinate_vectors] + [edge for edge in self.frame.cross_vectors]
-        edges = sorted(edges, key=lambda edge: edge.pin)
-        for i in range(len(edges)):
-            edges[i].weight = solution[i]
-
-    def draw_edges(self, canvas):
-        count = 1
-        print('DRAWING COORDINATE VECTORS')
-        for edge in self.frame.coordinate_vectors:
-            print('drawing edge %s/%s' % (count, len(self.frame.coordinate_vectors)))
-            DrawEdge(edge, canvas)
-            count += 1
-        count = 1
-        print('DRAWING CROSS VECTORS')
-        for edge in self.frame.cross_vectors:
-            print('drawing edge %s/%s' % (count, len(self.frame.cross_vectors)))
-            DrawEdge(edge, canvas)
-            count += 1
-
-    def find(self, file=''):
-        """
-        This is the meat of the algorithm. It takes the frame and runs the steps outlined
-        in the report. So if you've read the report this should be pretty self explanatory.
-        """
-        dimension = 0
-        while True:
-            print('--> generating linear system')
-            linear_system = self.generate_linear_system()
-            print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
-            print('--> trying to find a solution')
-            vector_solution = self.solve(linear_system)
-            if vector_solution is None:
-                print('--> solution not found')
-                print('--> doubling along dimension %s' % dimension)
-                self.frame.double(dimension)
-                dimension = (dimension + 1) % self.dimensions
-            else:
-                break
-        solution = self.normalize_solution(vector_solution)
-        self.set_edge_weights(solution)
-        if file:
-            c = canvas.canvas()
-            self.draw_edges(c)
-            c.writePDFfile(file)
-
-    def incidence(self):
-        edgetionary = {}
-        incidence_matrix = []
-        positions = []
-        label_matrix = []
-        edges = [edge for edge in self.frame.coordinate_vectors] + [edge for edge in self.frame.coordinate_vectors]
-        counter = 0
-        for edge in edges:
-            if edge.weight != 0:
-                edgetionary[edge.pin] = counter
-                row = [Fraction(0)] * self.num_vectors
-                row[edge.id] = Fraction(1)
-                label_matrix.append(row)
-                counter += 1
-        num_columns = len(edgetionary)
-        for position in self.frame.vertices:
-            non_zero_cut = False
-            row = [Fraction(0)] * num_columns
-            for double in self.frame.vertices[position].cut:
-                if double[0] is not None and double[0].pin in edgetionary:
-                    column = edgetionary[double[0].pin]
-                    row[column] = -double[0].weight
-                    non_zero_cut = True
-                if double[1] is not None and double[1].pin in edgetionary:
-                    column = edgetionary[double[1].pin]
-                    row[column] = double[1].weight
-                    non_zero_cut = True
-            if non_zero_cut:
-                incidence_matrix.append(row)
-                positions.append(list(position))
-        return incidence_matrix, label_matrix, positions
-
-    def graphical_indicence(self):
-        incidence_matrix = self.incidence()[0]
-        graphical = []
-        for row in incidence_matrix:
-            graphical_row = []
-            for e in row:
-                if e == 0:
-                    graphical_row.append(0)
-                else:
-                    graphical_row.append(int(e / abs(e)))
-            graphical.append(graphical_row)
-        return graphical
-
-    def see_frame(self, file):
-        for edge in self.frame.coordinate_vectors:
-            edge.weight = edge.pin
-        for edge in self.frame.cross_vectors:
-            edge.weight = edge.pin
-        c = canvas.canvas()
-        self.draw_edges(c)
-        c.writePDFfile(file)
-
-    def try_size(self, frame_shape, file=''):
-        # first we setup the block anew
-        self.frame = Frame(self.dimensions, self.num_vectors, self.steps)
-        first_frame_shape = self.get_first_frame_shape()
-        self.frame.seed_frame(first_frame_shape)
-        cross_vectors = self.get_cross_vectors()
-        for vector in cross_vectors:
-            self.frame.populate(vector)
-        # now we try to grow our block to the right size
-        if not self.frame.grow_to_size(frame_shape):
-            return None
-        print('--> generating linear system')
-        linear_system = self.generate_linear_system()
-        print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
-        print('--> trying to find a solution')
-        vector_solution = self.solve(linear_system)
-        if vector_solution is None:
-            print('--> solution not found')
-            return None
+    def solve(self, random_objective_vector = True):
+        E = self.generate_linear_system()
+        num_weights = len(E[0])
+        sum_condition_row = [1] * num_weights + [-1]
+        sum_condition_value = 1
+        for row in E:
+            row.append(0)
+        E.append(sum_condition_row)
+        b = [0] * (len(E) - 1) + [sum_condition_value]
+        if(random_objective_vector == False):
+            c = [1 for i in range(num_weights + 1)]
         else:
-            print('--> solution found')
-        solution = self.normalize_solution(vector_solution)
-        self.set_edge_weights(solution)
-        if file:
-            c = canvas.canvas()
-            self.draw_edges(c)
-            c.writePDFfile(file)
-    def try_size_scipy(self, frame_shape, file=''):
-        # first we setup the block anew
-        self.frame = Frame(self.dimensions, self.num_vectors, self.steps)
-        first_frame_shape = self.get_first_frame_shape()
-        self.frame.seed_frame(first_frame_shape)
-        cross_vectors = self.get_cross_vectors()
-        for vector in cross_vectors:
-            self.frame.populate(vector)
-        # now we try to grow our block to the right size
-        if not self.frame.grow_to_size(frame_shape):
-            return None
-        print('--> generating linear system scipy')
-        linear_system = self.generate_linear_system()
-        print('     size is %s, %s' % (len(linear_system), len(linear_system[0])), 'scipy')
-        print('--> trying to find a solution scipy')
-        solution = self.solve_scipy(linear_system)
-        if solution is None:
-            print('--> solution not found scipy')
-            return None
-        else:
-            print('--> solution found scipy')
-        self.set_edge_weights(solution)
-        if file:
-            c = canvas.canvas()
-            self.draw_edges(c)
-            c.writePDFfile(file)
+            c = self.get_random_objective_vector(num_weights + 1)
+        result = linprog(c, A_eq=E, b_eq=b, integrality=1)
+        print(result.x)
 
-    def find_scipy(self, file='', random_objective_vector=False):
-        """
-        This is the meat of the algorithm. It takes the frame and runs the steps outlined
-        in the report. So if you've read the report this should be pretty self explanatory.
-        """
-        dimension = 0
-        while True:
-            print('--> generating linear system')
-            linear_system = self.generate_linear_system_no_frac()
-            print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
-            print('--> trying to find a solution')
-            vector_solution = self.solve_scipy(linear_system, random_objective_vector=random_objective_vector)
-            if vector_solution is None:
-                print('--> solution not found')
-                print('--> doubling along dimension %s' % dimension)
-                self.frame.double(dimension)
-                dimension = (dimension + 1) % self.dimensions
-            else:
-                print('--> solution found')
-                break
-
-        self.set_edge_weights(vector_solution)
-        if file:
-            c = canvas.canvas()
-            self.draw_edges(c)
-            c.writePDFfile(file)
-        return vector_solution
-    # def draw_solutions_scipy(self, file_path, folder_name):
-    #     """
-    #     This function attempts to generate multiple Kirchhoff graphs for the given matrix.
-    #     """
-    #     index = 0
-    #     path = file_path + '/' + folder_name
-    #     os.makedirs(file_path + '/' + folder_name, exist_ok=True)
-    #     for(i) in range(100):
-    #         #continue after 15 seconds if the following operation does not complete
-            
-    #         solution = self.find_scipy(random_objective_vector=True)
-            
-    #         if solution is not None:
-    #             self.set_edge_weights(solution)
-    #             draw(self, path + '/solution_%s.png' % (index + 1))   
-    #             index += 1
-    def draw_solutions_scipy(self, file_path, folder_name):
-        """
-        This function attempts to generate multiple Kirchhoff graphs for the given matrix.
-        """
-        solutions = []
-        index = 0
-        path = file_path + '/' + folder_name
-        lastSolutionFound = 0
-        os.makedirs(file_path + '/' + folder_name, exist_ok=True)
-        while lastSolutionFound < 5:
-            solution = list(self.find_scipy(random_objective_vector=True))
-            
-            if solution in solutions:
-                print(solution)
-                print(solutions)
-                print("--> already found this solution")
-                lastSolutionFound += 1
-            else:
-                print("--> found a new solution")
-                solutions.append(solution)
-                print(solution)
-                self.set_edge_weights(solution)
-                draw(self, path + '/solution_%s.png' % (index + 1))   
-                lastSolutionFound = 0
-                index += 1
-        print('--> found %s solutions' % len(solutions))
-      
-
-    # def draw_solutions_scipy(self, file_path, folder_name):
-    #     """
-    #     This function attempts to generate multiple Kirchhoff graphs for the Kirchhoff given matrix.
-    #     """
-    #     solutions = []
-    #     dimension = 0
-    #     lastSolutionFound = 0
-    #     index = 0
-    #     path = file_path + '/' + folder_name
-    #     os.makedirs(file_path + '/' + folder_name, exist_ok=True)
-    #     while True:
-    #         print('--> generating linear system')
-    #         linear_system = self.generate_linear_system_no_frac()
-    #         print('     size is %s, %s' % (len(linear_system), len(linear_system[0])))
-    #         print('--> trying to find a solution')
-    #         vector_solution = self.solve_scipy(linear_system)
-    #         if vector_solution is None:
-    #             print('--> solution not found')
-    #             print('--> doubling along dimension %s' % dimension)
-    #             self.frame.double(dimension)
-    #             dimension = (dimension + 1) % self.dimensions
-    #         else:
-    #             while lastSolutionFound < 4:
-    #                 print('--> trying to find a solution')
-    #                 vector_solution = self.solve_scipy(linear_system, random_objective_vector=True)
-    #                 if vector_solution is not None and vector_solution not in solutions:
-    #                     print(vector_solution)
-    #                     solutions.append(vector_solution)
-    #                     self.set_edge_weights(vector_solution)
-    #                     draw(self, path + '/solution_%s.png' % (index + 1))   
-    #                     index += 1     
-    #                     lastSolutionFound = 0
-    #                 else:
-    #                     lastSolutionFound += 1
-    #             break
-    #     print('--> found %s solutions' % len(solutions))
-    #     return solutions
+        status = result.status
+        print(status)
+        if(status == 0 ):
+            intSolution = np.array([round(x) for x in result.x])
+            toCheck = intSolution * E
+            if(np.sum(toCheck[:-1]) == 0):
+                return intSolution
+        return None
+    
+    def draw_solution(self, x, y):
+        A = self.generate_linear_system()
+        print(np.shape(A))
+        solution = self.solve(A)
+        if(solution is None):
+            self.frame.expand()
+            self.draw_solution(x, y)
+            print("No solution found")
+            return
+        
+        # update the weights
+        for edge in self.frame.edges:
+            edge.weight = solution[edge.pin]
+        print(solution)
+        # draw the graph
+        draw_graph_slider(self, x, y)

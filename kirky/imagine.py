@@ -1,108 +1,181 @@
-import numpy as np
-import networkx as nx
-from sklearn.decomposition import PCA
-from collections import defaultdict
 import matplotlib.pyplot as plt
-from tqdm import tqdm
-from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+import matplotlib.patheffects as pe
+from matplotlib.widgets import Button,Slider
+
+def draw_graph(k, x, y):    
+
+    # transformation matrix for projecting from n-dimensional space to 2D
+    transformation_matrix = np.array([x, y])
+        
+    # constants
+    LABEL_POSITION = 0.618
+    SPACE_OFFSET = 0.02
+    TEXT_OFFSET = 0.025
+    HEAD_SIZE = 5
+
+    
+    vectors = []
+    vector_text = []
+    vector_text_positions = []
+    
+    for edge in k.frame.edges:
+        if edge.weight != 0:
+            # project coordinates
+            head_vertex = np.dot(transformation_matrix, edge.head.position)
+            tail_vertex = np.dot(transformation_matrix, edge.tail.position)
+            
+            # compute coordinates
+            vector = head_vertex - tail_vertex
+            normalized = vector / np.linalg.norm(vector)
+            tail_position = tail_vertex + SPACE_OFFSET * normalized
+            components = vector - 2 * SPACE_OFFSET * normalized
+            text_position = np.subtract(tail_vertex + vector * LABEL_POSITION, TEXT_OFFSET)
+            
+            # store the information
+            vectors.append((tail_position[0], tail_position[1], components[0], components[1]))
+            vector_text.append(f'{edge.weight}, {edge.id + 1}')
+            vector_text_positions.append((text_position[0], text_position[1]))
+    
+    # retrieve the vertices
+    vertices = [np.dot(transformation_matrix, vertex.position) for vertex in k.frame.vertices.values() if vertex.is_connected()]
+    print(vertices)
+    verticesX, verticesY = zip(*vertices)
 
 
+    
+    # draw everything
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.quiver(*zip(*vectors), angles='xy', scale_units='xy', scale=1, width=0.003, color='black', headwidth = HEAD_SIZE, headlength = HEAD_SIZE, headaxislength = HEAD_SIZE)
+    ax.scatter(verticesX, verticesY, color='blue')
+    ax.set_xticks(np.arange(min(verticesX), max(verticesX) + 1, 1))
+    ax.set_yticks(np.arange(min(verticesY), max(verticesY) + 1, 1))
+    for i, text in enumerate(vector_text):
+        ax.text(vector_text_positions[i][0], vector_text_positions[i][1], text, color='black', fontsize=8, fontweight='bold', fontname='Arial', path_effects=[pe.withStroke(linewidth=6, foreground="white")])
+    
+    plt.show()
+def draw_graph_slider(k, x, y):
+    
+    # transformation matrix for projecting from n-dimensional space to 2D
+    transformation_matrix = np.array([x, y])
+        
+    # constants
+    LABEL_POSITION = 0.618
+    SPACE_OFFSET = 0.05
+    TEXT_OFFSET = 0.025
+    HEAD_SIZE = 5
 
-class Indexer(object):
-
-	def __init__(self):
-		self.id = 0
-
-	def __call__(self):
-		self.id += 1
-		return self.id - 1
-
-
-def create_tables(edges):
-	vertices = defaultdict(Indexer())
-	adjacencies_dict = defaultdict(dict)
-	labels_dict = defaultdict(dict)
-	for edge in edges:
-		head = tuple([float(e) for e in edge.head])
-		tail = tuple([float(e) for e in edge.tail])
-		weight = int(edge.weight)
-		if weight != 0:
-			head_id = vertices[head]
-			tail_id = vertices[tail]
-			adjacencies_dict[tail_id][head_id] = weight
-			adjacencies_dict[head_id][tail_id] = -weight
-			labels_dict[tail_id][head_id] = int(edge.id)
-			labels_dict[head_id][tail_id] = int(edge.id)
-	vertices_list = [tuple()] * len(vertices)
-	for vertex, index in vertices.items():
-		vertices_list[index] = vertex
-	vertices = np.asarray(vertices_list)
-	adjacencies = np.zeros((len(vertices_list), len(vertices_list)))
-	for tail_id, _dict in adjacencies_dict.items():
-		for head_id, weight in _dict.items():
-			adjacencies[tail_id][head_id] = weight
-	labels = np.zeros((len(vertices_list), len(vertices_list)))
-	for tail_id, _dict in labels_dict.items():
-		for head_id, weight in _dict.items():
-			labels[tail_id][head_id] = weight
-	return vertices, adjacencies, labels
-
-
-def pca_projection(vertices):
-	pca = PCA(n_components=2)
-	vertices = pca.fit_transform(vertices)
-	return vertices, pca
-
-
-def defined_projection(x, y, vertices):
-	y_sqr_norm = np.linalg.norm(y) ** 2
-	x_sqr_norm = np.linalg.norm(x) ** 2
-	transform = np.asarray([x / x_sqr_norm, y / y_sqr_norm]).T
-	return vertices.dot(transform)
+    
+    vectors = []
+    vector_text = []
+    vector_text_positions = []
+    
+    for edge in k.frame.edges:
+        if edge.weight != 0:
+            # project coordinates
+            head_vertex = np.dot(transformation_matrix, edge.head.position)
+            tail_vertex = np.dot(transformation_matrix, edge.tail.position)
+            
+            # compute coordinates
+            vector = head_vertex - tail_vertex
+            normalized = vector / np.linalg.norm(vector)
+            tail_position = tail_vertex + SPACE_OFFSET * normalized
+            components = vector - 2 * SPACE_OFFSET * normalized
+            text_position = np.subtract(tail_vertex + vector * LABEL_POSITION, TEXT_OFFSET)
+            
+            # store the information
+            vectors.append((tail_position[0], tail_position[1], components[0], components[1]))
+            vector_text.append(f'{edge.weight}, {edge.id + 1}')
+            vector_text_positions.append((text_position[0], text_position[1]))
+    
+    # retrieve the vertices
+    vertices = [np.dot(transformation_matrix, vertex.position) for vertex in k.frame.vertices.values() if vertex.is_connected()]
+    print(vertices)
+    verticesX, verticesY = zip(*vertices)
 
 
-def build_nx_graph(adjacencies, labels):
-	weighted_edges = []
-	edge_labels = {}
-	for tail_id in range(adjacencies.shape[0]):
-		for head_id in range(tail_id):
-			weight = adjacencies[tail_id][head_id]
-			label = labels[tail_id][head_id]
-			if weight > 0:
-				weighted_edges.append((tail_id, head_id, weight))
-				edge_labels[(tail_id, head_id)] = '%s' % (int(weight))
-			elif weight < 0:
-				weighted_edges.append((head_id, tail_id, weight))
-				edge_labels[(head_id, tail_id)] = '%s' % (int(-weight))
-	DG = nx.DiGraph()
-	DG.add_weighted_edges_from(weighted_edges)
-	return DG, edge_labels
+    
+    # draw everything
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.quiver(*zip(*vectors), angles='xy', scale_units='xy', scale=1, width=0.003, color='black', headwidth = HEAD_SIZE, headlength = HEAD_SIZE, headaxislength = HEAD_SIZE)
+    ax.scatter(verticesX, verticesY, color='blue')
+    ax.set_xticks(np.arange(np.floor(min(verticesX)), np.ceil(max(verticesX)) + 1, 1))
+    ax.set_yticks(np.arange(min(verticesY), max(verticesY) + 1, 1))
+    for i, text in enumerate(vector_text):
+        ax.text(vector_text_positions[i][0], vector_text_positions[i][1], text, color='black', fontsize=8, fontweight='bold', fontname='Arial', path_effects=[pe.withStroke(linewidth=6, foreground="white")])
+    num_dims = k.dimensions
+    num_sliders = num_dims - 2
+    initial_angles = np.linspace(0, np.pi, num_dims)
+    initial_angles = initial_angles[1 : ]
+    # make a list of sliders, each corresponding to a dimension
+    sliders = []
+    for i in range(num_sliders):
+        axslider = fig.add_axes([0.25, 0.1 + 0.03 * i, 0.65, 0.03])
+        slider = Slider(
+            ax=axslider,
+            label=f'Angle {i + 1}',
+            valmin=0,
+            valmax=2 * np.pi,
+            valinit=initial_angles[i]
+        )
+        sliders.append(slider)
+    # calculate how much to adjust the subplot to make room for the sliders
+    fig.subplots_adjust(bottom=0.25 + 0.03 * num_sliders)
+    def update(val):
+        angles = [0, np.pi / 2] + [slider.val for slider in sliders]
+        transformation_matrix = np.array([[np.cos(angle) for angle in angles], [np.sin(angle) for angle in angles]])
+        print(np.round(transformation_matrix, decimals=2))
+        ax.clear()
+        vectors = []
+        vector_text = []
+        vector_text_positions = []
+        for edge in k.frame.edges:
+            if edge.weight != 0:
+                # project coordinates
+                head_vertex = np.dot(transformation_matrix, edge.head.position)
+                tail_vertex = np.dot(transformation_matrix, edge.tail.position)
+                
+                # compute coordinates
+                vector = head_vertex - tail_vertex
+                normalized = vector / np.linalg.norm(vector)
+                tail_position = tail_vertex + SPACE_OFFSET * normalized
+                components = vector - 2 * SPACE_OFFSET * normalized
+                text_position = np.subtract(tail_vertex + vector * LABEL_POSITION, TEXT_OFFSET)
+                
+                # store the information
+                vectors.append((tail_position[0], tail_position[1], components[0], components[1]))
+                vector_text.append(f'{edge.weight}, {edge.id + 1}')
+                vector_text_positions.append((text_position[0], text_position[1]))
+        # retrieve the vertices
+        vertices = [np.dot(transformation_matrix, vertex.position) for vertex in k.frame.vertices.values() if vertex.is_connected()]
+        verticesX, verticesY = zip(*vertices)
+        ax.quiver(*zip(*vectors), angles='xy', scale_units='xy', scale=1, width=0.003, color='black', headwidth = HEAD_SIZE, headlength = HEAD_SIZE, headaxislength = HEAD_SIZE)
+        ax.scatter(verticesX, verticesY, color='blue')
+        ax.set_xticks(np.arange(np.floor(min(verticesX)), np.ceil(max(verticesX)) + 1, 1))
+        ax.set_yticks(np.arange(min(verticesY), max(verticesY) + 1, 1))
+        for i, text in enumerate(vector_text):
+            ax.text(vector_text_positions[i][0], vector_text_positions[i][1], text, color='black', fontsize=8, fontweight='bold', fontname='Arial', path_effects=[pe.withStroke(linewidth=6, foreground="white")])
+        plt.show()
+    for slider in sliders:
+        slider.on_changed(update)
+    plt.show()
+    # Make a horizontal slider to control the frequency.
+    # axfreq = fig.add_axes([0.25, 0.1, 0.65, 0.03])
+    # freq_slider = Slider(
+    #     ax=axfreq,
+    #     label='Frequency [Hz]',
+    #     valmin=0.1,
+    #     valmax=30,
+    #     valinit=0
+    # )
 
-
-def draw(k, file_path, x=None, y=None):
-	if k.dimensions == 2:
-		x = [1, 0]
-		y = [0, 1]
-	edges = list(k.frame.coordinate_vectors) + list(k.frame.cross_vectors)
-	vertices, adjacencies, labels = create_tables(edges)
-	if x is None or y is None:
-		projected_vertices, _ = pca_projection(vertices)
-	else:
-		projected_vertices = defined_projection(x, y, vertices)
-	graph, edge_labels = build_nx_graph(adjacencies, labels)
-	plt.clf()
-	plt.figure(figsize=(10,10))
-	x = nx.draw_networkx_edges(graph, pos=projected_vertices)
-	nodes = nx.draw_networkx_edge_labels(graph, pos=projected_vertices, font_size=12,
-											edge_labels=edge_labels, label_pos=0.38)
-	plt.scatter(projected_vertices[:, 0], projected_vertices[:, 1], color='blue', s=100)
-	plt.savefig(file_path)
-	plt.close()
-
-def draw3d(k, file_path):
+    
+def draw3d(k):
 	plt.clf()
 	print("The current plt figure number is", plt.gcf().number)
-	edges = list(k.frame.coordinate_vectors) + list(k.frame.cross_vectors)
+	edges = list(k.frame.edges)
 	edges = [edge for edge in edges if edge.weight != 0]
 	tail_coordinates = [[int(coord) for coord in edge.tail] for edge in edges]
 	head_coordinates = [[int(coord) for coord in edge.head] for edge in edges]
@@ -125,6 +198,5 @@ def draw3d(k, file_path):
 	ax.set_xticks(np.arange(min(X), max(X)+1, 1))
 	ax.set_yticks(np.arange(min(Y), max(Y)+1, 1))
 	ax.set_zticks(np.arange(min(Z), max(Z)+1, 1))
-	#plt.savefig(file_path, format='png')
 	plt.show()
 	plt.close()
