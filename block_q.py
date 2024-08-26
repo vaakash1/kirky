@@ -61,27 +61,26 @@ class Frame(object):
         edges (set): The set of edges in the frame.
     """
 
-    def __init__(self, matrix, q=1, search_depth = 1):
+    def __init__(self, matrix, q=1):
         self.dimensions = matrix.shape[0]
         self.num_vectors = matrix.shape[1]
         self.matrix = matrix
         self.q = q
         Edge.pin = 0
-        self.shape = self.get_first_shape(search_depth = search_depth)
+        self.shape = self.get_first_shape()
         self.vertices = {}
         self.populate_vertices(np.zeros(self.dimensions, dtype=np.int16),  np.array(self.shape, dtype=np.int16))
         self.edges = set()
         self.populate_edges(np.zeros(self.dimensions, dtype=np.int16),  np.array(self.shape, dtype=np.int16))
         
-    def get_first_shape(self, search_depth = 1):
+    def get_first_shape(self):
         self.shape = []
         for row in self.matrix:
             max_element = int(max([abs(element) for element in row]))
-            self.shape.append(max_element * search_depth + 1)
+            self.shape.append(max_element + 1)
         return self.shape
     
     def populate_vertices(self, start, end):
-        
         for position in self.iterate_vertices(start, end):
             self.vertices[tuple(position)] = Vertex(position, self.num_vectors)
     
@@ -119,14 +118,15 @@ class Frame(object):
                 max_position[i] = shape[i] - component
         return min_position + start, max_position + start
 
-    # a function to increase the size of the frame along 1 dimension by 1 and add the new vertices and edges
-    def expand(self, dimension):
-        start = np.zeros(self.dimensions, dtype=np.int16)
-        start[dimension] = self.shape[dimension]
-        self.shape[dimension] += 1
-        self.populate_vertices(start, self.shape)
-        self.populate_edges(start, self.shape)
-    
+    # a function to double the size of the frame along 1 dimension
+    def expand(self):
+        dimension = np.argmin(np.divide(self.shape, np.max(self.matrix, axis = 1)))
+        self.shape[dimension] *= 2
+        self.vertices = {}
+        self.populate_vertices(np.zeros(self.dimensions, dtype=np.int16),  np.array(self.shape, dtype=np.int16))
+        self.edges = set()
+        self.populate_edges(np.zeros(self.dimensions, dtype=np.int16),  np.array(self.shape, dtype=np.int16))
+            
     def add_new_edges(self, start):
         vectors = np.transpose(self.matrix)
         for (vector_id, vector) in enumerate(vectors):
