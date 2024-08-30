@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patheffects as pe
 from matplotlib.widgets import Button,Slider
+import time
 
 def draw_graph(k, x, y):    
 
@@ -124,9 +125,12 @@ def draw_graph_slider(k, x, y):
     # calculate how much to adjust the subplot to make room for the sliders
     fig.subplots_adjust(bottom=0.25 + 0.03 * num_sliders)
     def update(val):
+        time.sleep(0.05)
         angles = [0, np.pi / 2] + [slider.val for slider in sliders]
         transformation_matrix = np.array([[np.cos(angle) for angle in angles], [np.sin(angle) for angle in angles]])
         print(np.round(transformation_matrix, decimals=2))
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
         ax.clear()
         vectors = []
         vector_text = []
@@ -155,22 +159,16 @@ def draw_graph_slider(k, x, y):
         ax.scatter(verticesX, verticesY, color='blue')
         ax.set_xticks(np.arange(np.floor(min(verticesX)), np.ceil(max(verticesX)) + 1, 1))
         ax.set_yticks(np.arange(min(verticesY), max(verticesY) + 1, 1))
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
         for i, text in enumerate(vector_text):
             ax.text(vector_text_positions[i][0], vector_text_positions[i][1], text, color='black', fontsize=8, fontweight='bold', fontname='Arial', path_effects=[pe.withStroke(linewidth=6, foreground="white")])
         plt.show()
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
     for slider in sliders:
         slider.on_changed(update)
     plt.show()
-    # Make a horizontal slider to control the frequency.
-    # axfreq = fig.add_axes([0.25, 0.1, 0.65, 0.03])
-    # freq_slider = Slider(
-    #     ax=axfreq,
-    #     label='Frequency [Hz]',
-    #     valmin=0.1,
-    #     valmax=30,
-    #     valinit=0
-    # )
-
     
 def draw3d(k):
 	plt.clf()
